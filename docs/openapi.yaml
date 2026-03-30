@@ -1,0 +1,123 @@
+openapi: 3.0.3
+info:
+  title: Nizi POS Connector API
+  description: >-
+    REST API for the Nizi POS Connector local service (UART display).
+    All endpoints require the `X-API-Key` header and are intended for localhost use only.
+  version: 1.0.0
+servers:
+  - url: http://127.0.0.1:9121
+    description: Local Service
+
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+
+security:
+  - ApiKeyAuth: []
+
+paths:
+  /api/status:
+    get:
+      summary: Get device connection status
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  connected:
+                    type: boolean
+                  port:
+                    type: string
+                    nullable: true
+
+  /api/connect:
+    post:
+      summary: Connect to device
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                port:
+                  type: string
+                  description: COM port or null for auto-detect
+                  nullable: true
+      responses:
+        '200':
+          description: OK
+
+  /api/disconnect:
+    post:
+      summary: Disconnect device
+      responses:
+        '200':
+          description: OK
+
+  /api/command:
+    post:
+      summary: Send raw command
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [command]
+              properties:
+                command:
+                  type: string
+      responses:
+        '200':
+          description: OK
+
+  /api/settings:
+    post:
+      summary: Update system settings
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                volume:
+                  type: integer
+                  minimum: 0
+                  maximum: 100
+                brightness:
+                  type: integer
+                  minimum: 0
+                  maximum: 100
+                screentime:
+                  type: integer
+                  minimum: 1
+                  maximum: 3600
+      responses:
+        '200':
+          description: OK
+
+  /api/upload-image:
+    post:
+      summary: Upload JPEG image
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                image:
+                  type: string
+                  format: binary
+                size:
+                  type: string
+                  default: "320x480"
+      responses:
+        '200':
+          description: OK

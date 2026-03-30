@@ -1,0 +1,9 @@
+flask
+flask-socketio
+pyserial
+pystray
+Pillow
+pyinstaller
+pyqt6
+platformdirs
+requests
