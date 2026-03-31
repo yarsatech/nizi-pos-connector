@@ -96,7 +96,7 @@ exe_updater = EXE(
     a_updater.scripts,
     [],
     exclude_binaries=True,
-    name="ota_updater",
+    name="ota-updater",
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,

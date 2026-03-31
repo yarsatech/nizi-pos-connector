@@ -30,7 +30,7 @@ _DIST_DEFAULTS: dict = {
     "whatsapp_url": "https://wa.me/9779800959042?text=Hi%20Yarsa%20Tech.%20Please%20provide%20me%20the%20API%20for%20the%20Nizi%20POS%20Connector.",
     "github_repo": "",
     "main_exe_basename": "NiziPOSConnector.exe",
-    "updater_exe_basename": "ota_updater.exe",
+    "updater_exe_basename": "ota-updater",
     "ota_http_user_agent": "Nizi-POS-Connector-OTA",
     "ota_temp_dir_name": "nizi_pos_connector_ota",
     "ota_staging_dir_prefix": "nizi_pos_connector_ota_staging_",

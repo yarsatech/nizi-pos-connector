@@ -53,6 +53,23 @@ def _safe_delete_entry(path: str):
         shutil.rmtree(path, ignore_errors=True)
 
 
+def _resolve_main_exe_path(base_dir: str) -> str | None:
+    name = (MAIN_EXE_BASENAME or "").strip()
+    if not name:
+        return None
+    if sys.platform.startswith("win"):
+        candidate = f"{name}.exe"
+    elif sys.platform.startswith("linux"):
+        candidate = name
+    else:
+        # macOS path resolution will be added later.
+        return None
+    candidate_path = os.path.join(base_dir, candidate)
+    if os.path.exists(candidate_path):
+        return candidate_path
+    return None
+
+
 def _move_with_retry(src: str, dst: str, *, retries: int = 25, delay_s: float = 0.2):
     """
     Windows can temporarily lock files right as the app exits.
@@ -73,14 +90,13 @@ def _move_with_retry(src: str, dst: str, *, retries: int = 25, delay_s: float = 
 
 
 def _find_app_root(extract_root: str) -> str | None:
-    main = os.path.join(extract_root, MAIN_EXE_BASENAME)
-    if os.path.exists(main):
+    if _resolve_main_exe_path(extract_root):
         return extract_root
 
     try:
         for name in os.listdir(extract_root):
             candidate = os.path.join(extract_root, name)
-            if os.path.isdir(candidate) and os.path.exists(os.path.join(candidate, MAIN_EXE_BASENAME)):
+            if os.path.isdir(candidate) and _resolve_main_exe_path(candidate):
                 return candidate
     except Exception:
         pass
@@ -136,14 +152,14 @@ def main():
         if not app_root:
             raise RuntimeError(f"Could not locate {MAIN_EXE_BASENAME} inside the update ZIP.")
 
-        new_main_exe = os.path.join(app_root, MAIN_EXE_BASENAME)
-        if not os.path.exists(new_main_exe):
+        new_main_exe = _resolve_main_exe_path(app_root)
+        if not new_main_exe or not os.path.exists(new_main_exe):
             raise RuntimeError(f"Update ZIP does not contain {MAIN_EXE_BASENAME}.")
 
         main_exe_path = (
             os.path.abspath(main_exe_arg)
             if main_exe_arg
-            else os.path.join(target_dir, MAIN_EXE_BASENAME)
+            else (_resolve_main_exe_path(target_dir) or os.path.join(target_dir, MAIN_EXE_BASENAME))
         )
 
         # Backup everything except the updater itself.
@@ -217,7 +233,7 @@ def main():
                     _move_with_retry(src, dst)
 
                 # Try to launch the current (restored) version.
-                restored_main = os.path.join(target_dir, MAIN_EXE_BASENAME)
+                restored_main = _resolve_main_exe_path(target_dir) or os.path.join(target_dir, MAIN_EXE_BASENAME)
                 if os.path.exists(restored_main):
                     subprocess.Popen([restored_main], cwd=target_dir)
             except Exception:

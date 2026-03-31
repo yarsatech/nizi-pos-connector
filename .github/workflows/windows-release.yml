@@ -38,13 +38,13 @@ jobs:
           $meta.github_repo = $repo
           ($meta | ConvertTo-Json -Compress -Depth 10) | Set-Content -Path $path -Encoding UTF8
 
-      - name: Build PyInstaller (main app + nizi-pos-connector-ota-updater)
+      - name: Build PyInstaller (main app + ota-updater)
         shell: pwsh
         run: |
           Remove-Item -Recurse -Force dist, build -ErrorAction SilentlyContinue
           pyinstaller build.spec
 
-      - name: Create OTA ZIP (exclude nizi-pos-connector-ota-updater.exe)
+      - name: Create OTA ZIP (exclude ota-updater.exe)
         id: ota_zip
         shell: pwsh
         run: |
@@ -56,7 +56,7 @@ jobs:
           New-Item -ItemType Directory -Force -Path $staging | Out-Null
 
           Copy-Item -Path "dist\NiziPOSConnector\*" -Destination $staging -Recurse -Force
-          Remove-Item -Force -ErrorAction SilentlyContinue (Join-Path $staging "ota_updater.exe")
+          Remove-Item -Force -ErrorAction SilentlyContinue (Join-Path $staging "ota-updater.exe")
 
           # Zip contents at the zip root (main .exe, static/, assets/, ...)
           Compress-Archive -Path (Join-Path $staging "*") -DestinationPath $zipName -Force

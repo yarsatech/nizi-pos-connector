@@ -15,7 +15,6 @@ Compile **Nizi POS Connector** into a standalone executable for Windows, macOS, 
 4. **Dependencies**
    ```bash
    pip install -r requirements.txt
-   pip install pyinstaller
    ```
 
 ## Distribution metadata
@@ -34,7 +33,7 @@ pyinstaller build.spec
 
 | Platform | Main output |
 |----------|-------------|
-| **Windows** | `dist/NiziPOSConnector/NiziPOSConnector.exe` (onedir — same folder includes `ota_updater.exe`, `static/`, etc.) |
+| **Windows** | `dist/NiziPOSConnector/NiziPOSConnector.exe` (onedir — same folder includes `ota-updater.exe`, `static/`, etc.) |
 | **Linux** | `dist/NiziPOSConnector/NiziPOSConnector` |
 | **macOS** | `dist/NiziPOSConnector.app` |
 

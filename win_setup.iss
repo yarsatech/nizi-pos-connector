@@ -31,7 +31,7 @@ PrivilegesRequired=lowest
 
 [Files]
 Source: "dist\NiziPOSConnector\*"; DestDir: "{app}"; Flags: recursesubdirs ignoreversion
-Source: "dist\NiziPOSConnector\ota_updater.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "dist\NiziPOSConnector\ota-updater.exe"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 Name: "{group}\Nizi POS Connector"; Filename: "{app}\NiziPOSConnector.exe"; WorkingDir: "{app}"
