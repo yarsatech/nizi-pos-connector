@@ -14,6 +14,7 @@ from flask_socketio import SocketIO
 from device_manager import DeviceManager
 
 from config import config
+from ota.github import normalize_github_repo
 
 logger = logging.getLogger(__name__)
 
@@ -68,7 +69,7 @@ def _on_device_status(connected: bool, port: str | None):
     """Push connection status to all connected browser clients."""
     socketio.emit(
         "device_status",
-        {"connected": connected, "port": port, "device_id": device.device_id},
+        {"connected": connected, "port": port, "device_id": device.device_id, "firmware_id": device.firmware_id},
     )
 
 
@@ -107,7 +108,12 @@ def client_config():
 
 @app.route("/api/status")
 def api_status():
-    return jsonify({"connected": device.connected, "port": device.port, "device_id": device.device_id})
+    return jsonify({
+        "connected": device.connected,
+        "port": device.port,
+        "device_id": device.device_id,
+        "firmware_id": device.firmware_id,
+    })
 
 
 @app.route("/api/connect", methods=["POST"])
@@ -138,6 +144,30 @@ def api_command():
 
     result = device.send_command(command.strip())
     return jsonify(result)
+
+
+@app.route("/api/firmware")
+def api_firmware():
+    """Return the device firmware version and an update URL if available."""
+    firmware_id = device.firmware_id
+    device_id = device.device_id
+    connected = device.connected
+
+    # Build the firmware releases URL from the configured GitHub repo
+    update_url = None
+    repo_raw = getattr(config, "github_repo", "") or ""
+    repo = normalize_github_repo(repo_raw)
+    if repo:
+        # Link to GitHub releases page filtered by the device model
+        filter_query = device_id or ""
+        update_url = f"https://github.com/{repo}/releases?q=firmware+{filter_query}"
+
+    return jsonify({
+        "connected": connected,
+        "device_id": device_id,
+        "firmware_id": firmware_id,
+        "update_url": update_url,
+    })
 
 
 @app.route("/api/upload-image", methods=["POST"])
@@ -244,7 +274,7 @@ def ws_connect(auth=None):
     
     socketio.emit(
         "device_status",
-        {"connected": device.connected, "port": device.port, "device_id": device.device_id},
+        {"connected": device.connected, "port": device.port, "device_id": device.device_id, "firmware_id": device.firmware_id},
     )
 
 

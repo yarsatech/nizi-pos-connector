@@ -14,6 +14,7 @@ import re
 logger = logging.getLogger(__name__)
 
 DEVICE_ID_COMMAND = "DEVICE_ID"
+FIRMWARE_ID_COMMAND = "FIRMWARE_ID"
 # Hardware IDs: `NIZIPOS_B3X` / `NIZI_POS_B3X` (X = 0–9) — UART protocol, not the app display name.
 DEVICE_ID_PATTERN = re.compile(r"NIZI_?POS_B3\d", re.IGNORECASE)
 DEFAULT_BAUD_RATE = 115200
@@ -39,6 +40,7 @@ class DeviceManager:
         self._lock = threading.Lock()
         self._port: str | None = None
         self._device_id: str | None = None
+        self._firmware_id: str | None = None
         self._connected = False
         self._auto_connect = True  # Flag to enable/disable auto-connection polling
         self._on_status_change = None  # callback(connected: bool, port: str | None)
@@ -56,6 +58,10 @@ class DeviceManager:
     @property
     def device_id(self) -> str | None:
         return self._device_id
+
+    @property
+    def firmware_id(self) -> str | None:
+        return self._firmware_id
 
     def enable_auto_connect(self, enabled: bool):
         """Enable or disable the background auto-connect polling logic."""
@@ -209,6 +215,48 @@ class DeviceManager:
         except Exception:
             return None
 
+    def _query_firmware_id(self) -> str | None:
+        """
+        Query the connected device for its firmware version string.
+        Returns the clean version as 'major.minor.patch' (e.g. '2.0.0'), or None.
+        Any pre-release suffix (e.g. '-rc.2') is stripped.
+        """
+        if not self._serial or not self._serial.is_open:
+            return None
+        try:
+            self._serial.reset_input_buffer()
+            self._serial.write((FIRMWARE_ID_COMMAND + "\n").encode("utf-8"))
+            self._serial.flush()
+            response = self._serial.readline().decode("utf-8", errors="ignore").strip()
+            if not response:
+                return None
+            fw = response.strip()
+            # Strip leading 'V'/'v' prefix
+            if fw.lower().startswith("v"):
+                fw = fw[1:]
+            # Strip any pre-release suffix (e.g. '-rc.2', '-beta.1')
+            if "-" in fw:
+                fw = fw.split("-", 1)[0]
+            logger.info(f"Firmware ID: {fw!r}")
+            return fw if fw else None
+        except Exception as exc:
+            logger.debug(f"Firmware ID query failed: {exc}")
+            return None
+
+    def query_firmware_id(self) -> dict:
+        """
+        Public method to re-query the firmware ID on-demand.
+        Returns {"success": bool, "firmware_id": str | None, "error": str | None}.
+        """
+        with self._lock:
+            if not self._connected or not self._serial or not self._serial.is_open:
+                return {"success": False, "firmware_id": None, "error": "Device not connected."}
+            try:
+                self._firmware_id = self._query_firmware_id()
+                return {"success": True, "firmware_id": self._firmware_id, "error": None}
+            except Exception as exc:
+                return {"success": False, "firmware_id": None, "error": str(exc)}
+
     def connect(self, port: str | None = None) -> dict:
         """
         Connect to the device.  If *port* is None, auto-detect is used.
@@ -235,11 +283,12 @@ class DeviceManager:
                 )
                 time.sleep(0.1)
                 self._device_id = self._query_device_id()
+                self._firmware_id = self._query_firmware_id()
                 self._port = port
                 self._connected = True
-                logger.info(f"Connected to {port} ({self._device_id or 'unknown device id'})")
+                logger.info(f"Connected to {port} (device={self._device_id or 'unknown'}, firmware={self._firmware_id or 'unknown'})")
                 self._notify_status()
-                return {"success": True, "port": port, "device_id": self._device_id, "error": None}
+                return {"success": True, "port": port, "device_id": self._device_id, "firmware_id": self._firmware_id, "error": None}
             except serial.SerialException as exc:
                 return {"success": False, "port": port, "device_id": None, "error": str(exc)}
 
@@ -254,6 +303,7 @@ class DeviceManager:
             self._serial = None
             self._port = None
             self._device_id = None
+            self._firmware_id = None
             self._connected = False
             logger.info("Disconnected")
             self._notify_status()

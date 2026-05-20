@@ -438,6 +438,12 @@ class TrayFlyout(QWidget):
         self.instruction_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         card_layout.addWidget(self.instruction_label)
 
+        self.firmware_label = QLabel("")
+        self.firmware_label.setObjectName("instructionLabel")
+        self.firmware_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.firmware_label.setVisible(False)
+        card_layout.addWidget(self.firmware_label)
+
         self.btn_action = QPushButton("Connect Now")
         self.btn_action.setObjectName("connectBtn")
         self.btn_action.clicked.connect(self._manual_connect)
@@ -834,6 +840,15 @@ class TrayFlyout(QWidget):
             self.status_label.setText("Connected")
             self.status_label.setStyleSheet("color: #16a34a; font-size: 15px; font-weight: 600;")
             self.instruction_label.setText(f"Communicating on {port}")
+
+            # Show firmware version if available
+            fw = getattr(self.device, "firmware_id", None)
+            if fw:
+                self.firmware_label.setText(f"Firmware: {fw}")
+                self.firmware_label.setVisible(True)
+            else:
+                self.firmware_label.setVisible(False)
+
             self.btn_action.setText("Disconnect")
             self.btn_action.setObjectName("disconnectBtn")
             self.btn_action.setStyleSheet("")  # re-apply from stylesheet
@@ -850,6 +865,7 @@ class TrayFlyout(QWidget):
             self.status_label.setText("Disconnected")
             self.status_label.setStyleSheet("color: #64748b; font-size: 15px; font-weight: 600;")
             self.instruction_label.setText("Plug in device to get started.")
+            self.firmware_label.setVisible(False)
             self.btn_action.setText("Connect Now")
             self.btn_action.setObjectName("connectBtn")
             self.btn_action.setStyleSheet("")
