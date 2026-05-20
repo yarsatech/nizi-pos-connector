@@ -22,7 +22,9 @@ Returns the current connection state.
 ```json
 {
   "connected": true,
-  "port": "COM15"
+  "port": "COM15",
+  "device_id": "NIZIPOSB31",
+  "firmware_id": "2.0.0"
 }
 ```
 
@@ -45,6 +47,8 @@ Triggers a connection attempt.
 {
   "success": true,
   "port": "COM3",
+  "device_id": "NIZIPOSB31",
+  "firmware_id": "2.0.0",
   "error": null
 }
 ```
@@ -95,6 +99,108 @@ Uploads and displays a JPEG image.
 
 ---
 
+### 7. Firmware Info
+**`GET /api/firmware`**  
+Returns the connected device's firmware version and update URL.
+
+**Response (JSON):**
+```json
+{
+  "connected": true,
+  "device_id": "NIZIPOSB31",
+  "firmware_id": "2.0.0",
+  "update_url": "https://github.com/yarsatech/nizi-pos-connector/releases?q=firmware+NIZIPOSB31"
+}
+```
+
+---
+
+### 8. Set Screen Timeouts
+**`POST /api/timeout`**  
+Configures screen timeouts to prevent burn-in. QR and Pass/Fail screens auto-return to Idle.
+
+**Body (JSON):**
+```json
+{
+  "qr_timeout": 300,
+  "pf_timeout": 20
+}
+```
+*Values are in seconds (1–3600).*
+
+---
+
+### 9. Buzzer Control
+**`POST /api/buzzer`**  
+Enable or disable the buzzer. B30 devices have the buzzer disabled by default.
+
+**Body (JSON):**
+```json
+{
+  "enabled": 1
+}
+```
+*Set `0` to disable, `1` to enable.*
+
+---
+
+### 10. Set Idle Mode
+**`POST /api/idle-mode`**  
+Configures the device idle/inactivity behavior.
+
+**Modes:**
+
+**SINGLE** — Fixed static background image:
+```json
+{
+  "mode": "SINGLE",
+  "image_name": "IMG1"
+}
+```
+
+**CYCLE** — Alternate between two images:
+```json
+{
+  "mode": "CYCLE",
+  "img1": "IMG1",
+  "time1": 60000,
+  "img2": "IMG2",
+  "time2": 60000
+}
+```
+*Durations are in milliseconds.*
+
+**SLEEP** — Turn off backlight after inactivity:
+```json
+{
+  "mode": "SLEEP",
+  "image_name": "IMG1"
+}
+```
+
+**SLEEP_WAKE** — Scheduled sleep/wake cycle (default mode):
+```json
+{
+  "mode": "SLEEP_WAKE",
+  "image_name": "IMG1",
+  "sleep_ms": 30000,
+  "wake_ms": 120000
+}
+```
+
+---
+
+### 11. Upload Idle Image
+**`POST /api/upload-idle-image`**  
+Uploads a persistent image for idle display modes (IMG1 or IMG2).
+
+**Form Data:**
+- `image`: Binary JPEG file.
+- `slot`: `"1"` for IMG1 (primary), `"2"` for IMG2 (secondary, used by CYCLE mode).
+- `size`: (Optional) Target size, e.g., `"320x480"`.
+
+---
+
 ## WebSocket (Socket.IO) Communication
 
 The background service uses Socket.IO for real-time status updates and command feedback.
@@ -137,7 +243,9 @@ Emitted immediately upon connection and whenever the device connection state cha
 ```json
 {
   "connected": true,
-  "port": "COM15"
+  "port": "COM15",
+  "device_id": "NIZIPOSB31",
+  "firmware_id": "2.0.0"
 }
 ```
 

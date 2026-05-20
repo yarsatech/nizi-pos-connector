@@ -375,12 +375,42 @@ class DeviceManager:
     def set_screentime(self, value: int):
         return self.send_command(f"SCREENTIME**{value}")
 
+    # ── Timeout & Buzzer ────────────────────────────────────────────────
+
+    def set_timeout(self, qr_sec: int = 300, pf_sec: int = 20):
+        """Set screen timeouts: QR display and Pass/Fail display (in seconds)."""
+        return self.send_command(f"TIMEOUT**{qr_sec}**{pf_sec}")
+
+    def activate_buzzer(self, enabled: int = 1):
+        """Enable (1) or disable (0) the buzzer. B30 has buzzer disabled by default."""
+        return self.send_command(f"ACTIVATE_BUZZER**{enabled}")
+
+    # ── Idle mode commands ──────────────────────────────────────────────
+
+    def set_idle_single(self, image_name: str = "IMG1"):
+        """Fixed static background image idle mode."""
+        return self.send_command(f"IDLE_SINGLE**{image_name}")
+
+    def set_idle_cycle(self, img1: str = "IMG1", time1: int = 60000,
+                       img2: str = "IMG2", time2: int = 60000):
+        """Alternate between two images at defined intervals (ms)."""
+        return self.send_command(f"IDLE_CYCLE**{img1}**{time1}**{img2}**{time2}")
+
+    def set_idle_sleep(self, image_name: str = "IMG1"):
+        """Turn off backlight after inactivity, activate status LED."""
+        return self.send_command(f"IDLE_SLEEP**{image_name}")
+
+    def set_idle_sleep_wake(self, image_name: str = "IMG1",
+                            sleep_ms: int = 30000, wake_ms: int = 120000):
+        """Scheduled power-cycle: awake (display image) → sleep (backlight off)."""
+        return self.send_command(f"IDLE_SLEEP_WAKE**{image_name}**{sleep_ms}**{wake_ms}")
+
     # ── Image upload ────────────────────────────────────────────────────
 
-    def upload_image(self, jpeg_data: bytes) -> dict:
+    def _upload_image_protocol(self, start_command: str, jpeg_data: bytes) -> dict:
         """
-        Upload a JPEG image to the device following the documented protocol:
-          1. Send START_RTIMAGE\\n
+        Shared binary upload protocol for all image upload commands.
+          1. Send start_command\\n
           2. Send MAGIC_FRAME (4 bytes) + JPEG length (4 bytes, little-endian)
           3. Wait for 'R' ready acknowledgement
           4. Send JPEG binary data
@@ -395,9 +425,9 @@ class DeviceManager:
                 ser.reset_input_buffer()
 
                 # Step 1 – start command
-                ser.write((IMAGE_START_COMMAND + "\n").encode("utf-8"))
+                ser.write((start_command + "\n").encode("utf-8"))
                 ser.flush()
-                logger.info("Image upload: sent START_RTIMAGE")
+                logger.info(f"Image upload: sent {start_command}")
 
                 # The device needs time to create xTaskCreate and get ready
                 time.sleep(0.15)
@@ -449,3 +479,18 @@ class DeviceManager:
                 self._connected = False
                 self._notify_status()
                 return {"success": False, "error": str(exc)}
+
+    def upload_image(self, jpeg_data: bytes) -> dict:
+        """Upload a JPEG image for real-time display (START_RTIMAGE)."""
+        return self._upload_image_protocol(IMAGE_START_COMMAND, jpeg_data)
+
+    def upload_idle_image(self, jpeg_data: bytes) -> dict:
+        """Upload primary idle image (IMG1.jpg) using IMAGE_UPLOAD:[size]."""
+        cmd = f"IMAGE_UPLOAD:{len(jpeg_data)}"
+        return self._upload_image_protocol(cmd, jpeg_data)
+
+    def upload_idle_image_2(self, jpeg_data: bytes) -> dict:
+        """Upload secondary idle image (IMG2.jpg) using IMAGE_UPLOAD_2:[size]."""
+        cmd = f"IMAGE_UPLOAD_2:{len(jpeg_data)}"
+        return self._upload_image_protocol(cmd, jpeg_data)
+

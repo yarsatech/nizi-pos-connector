@@ -36,6 +36,12 @@ paths:
                   port:
                     type: string
                     nullable: true
+                  device_id:
+                    type: string
+                    nullable: true
+                  firmware_id:
+                    type: string
+                    nullable: true
 
   /api/connect:
     post:
@@ -115,6 +121,144 @@ paths:
                 image:
                   type: string
                   format: binary
+                size:
+                  type: string
+                  default: "320x480"
+      responses:
+        '200':
+          description: OK
+
+  /api/firmware:
+    get:
+      summary: Get device firmware version and update URL
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  connected:
+                    type: boolean
+                  device_id:
+                    type: string
+                    nullable: true
+                  firmware_id:
+                    type: string
+                    nullable: true
+                  update_url:
+                    type: string
+                    nullable: true
+
+  /api/timeout:
+    post:
+      summary: Set screen timeouts (QR and Pass/Fail)
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                qr_timeout:
+                  type: integer
+                  minimum: 1
+                  maximum: 3600
+                  default: 300
+                  description: QR screen timeout in seconds
+                pf_timeout:
+                  type: integer
+                  minimum: 1
+                  maximum: 3600
+                  default: 20
+                  description: Pass/Fail screen timeout in seconds
+      responses:
+        '200':
+          description: OK
+
+  /api/buzzer:
+    post:
+      summary: Enable or disable buzzer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                enabled:
+                  type: integer
+                  enum: [0, 1]
+                  description: 1 to enable, 0 to disable. B30 has buzzer disabled by default.
+      responses:
+        '200':
+          description: OK
+
+  /api/idle-mode:
+    post:
+      summary: Set device idle/inactivity mode
+      description: |
+        Modes: SINGLE (static image), CYCLE (alternate two images),
+        SLEEP (backlight off), SLEEP_WAKE (scheduled sleep/wake cycle).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [mode]
+              properties:
+                mode:
+                  type: string
+                  enum: [SINGLE, CYCLE, SLEEP, SLEEP_WAKE]
+                image_name:
+                  type: string
+                  default: IMG1
+                  description: Image name (used by SINGLE, SLEEP, SLEEP_WAKE)
+                img1:
+                  type: string
+                  default: IMG1
+                  description: First image name (CYCLE mode)
+                img2:
+                  type: string
+                  default: IMG2
+                  description: Second image name (CYCLE mode)
+                time1:
+                  type: integer
+                  default: 60000
+                  description: Image 1 display duration in ms (CYCLE mode)
+                time2:
+                  type: integer
+                  default: 60000
+                  description: Image 2 display duration in ms (CYCLE mode)
+                sleep_ms:
+                  type: integer
+                  default: 30000
+                  description: Sleep duration in ms (SLEEP_WAKE mode)
+                wake_ms:
+                  type: integer
+                  default: 120000
+                  description: Wake duration in ms (SLEEP_WAKE mode)
+      responses:
+        '200':
+          description: OK
+
+  /api/upload-idle-image:
+    post:
+      summary: Upload persistent idle image (IMG1 or IMG2)
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                image:
+                  type: string
+                  format: binary
+                slot:
+                  type: string
+                  enum: ["1", "2"]
+                  default: "1"
+                  description: "Image slot: 1 for IMG1, 2 for IMG2"
                 size:
                   type: string
                   default: "320x480"

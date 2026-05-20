@@ -499,6 +499,9 @@ class TrayFlyout(QWidget):
             "QR Display",
             "Text Display",
             "Image Upload",
+            "Idle Mode",
+            "Idle Images",
+            "Device Config",
             "Quick Actions",
         ])
         self.page_selector.setMinimumWidth(160)
@@ -515,6 +518,9 @@ class TrayFlyout(QWidget):
         self._build_page_qr()
         self._build_page_text()
         self._build_page_image()
+        self._build_page_idle_mode()
+        self._build_page_idle_images()
+        self._build_page_device_config()
         self._build_page_quick()
 
         root.addWidget(self.commands_container)
@@ -651,7 +657,7 @@ class TrayFlyout(QWidget):
 
         layout.addWidget(self._make_field_label("Screen Size"))
         self.img_size_dropdown = QComboBox()
-        self.img_size_dropdown.addItems(["2.8 inch (240×320)", "3.5 inch (320×480)"])
+        self.img_size_dropdown.addItems(["B30/B31 — 2.8 inch (240×320)", "B32/B33 — 3.5 inch (320×480)"])
         layout.addWidget(self.img_size_dropdown)
 
         self.btn_upload_img = QPushButton("Upload to Device")
@@ -659,6 +665,179 @@ class TrayFlyout(QWidget):
         self.btn_upload_img.clicked.connect(self._upload_image)
         self.btn_upload_img.setEnabled(False)
         layout.addWidget(self.btn_upload_img)
+
+        self.stack.addWidget(page)
+
+    def _build_page_idle_mode(self):
+        page = QWidget()
+        layout = QVBoxLayout(page)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(8)
+
+        layout.addWidget(self._make_field_label("Idle Mode"))
+        self.idle_mode_dropdown = QComboBox()
+        self.idle_mode_dropdown.addItems([
+            "SLEEP_WAKE — Sleep/Wake Cycle (Default)",
+            "SINGLE — Static Image",
+            "CYCLE — Alternate Two Images",
+            "SLEEP — Sleep After Inactivity",
+        ])
+        self.idle_mode_dropdown.currentIndexChanged.connect(self._on_idle_mode_change)
+        layout.addWidget(self.idle_mode_dropdown)
+
+        # Dynamic fields container
+        self.idle_fields_container = QWidget()
+        self.idle_fields_layout = QVBoxLayout(self.idle_fields_container)
+        self.idle_fields_layout.setContentsMargins(0, 4, 0, 0)
+        self.idle_fields_layout.setSpacing(8)
+
+        self.idle_img1_label = self._make_field_label("Image Name")
+        self.idle_img1 = QComboBox()
+        self.idle_img1.addItems(["IMG1", "IMG2"])
+        self.idle_fields_layout.addWidget(self.idle_img1_label)
+        self.idle_fields_layout.addWidget(self.idle_img1)
+
+        self.idle_sleep_ms_label = self._make_field_label("Sleep Duration (ms)")
+        self.idle_sleep_ms = QLineEdit("30000")
+        self.idle_fields_layout.addWidget(self.idle_sleep_ms_label)
+        self.idle_fields_layout.addWidget(self.idle_sleep_ms)
+
+        self.idle_wake_ms_label = self._make_field_label("Wake Duration (ms)")
+        self.idle_wake_ms = QLineEdit("120000")
+        self.idle_fields_layout.addWidget(self.idle_wake_ms_label)
+        self.idle_fields_layout.addWidget(self.idle_wake_ms)
+
+        self.idle_img2_label = self._make_field_label("Image 2 Name")
+        self.idle_img2 = QComboBox()
+        self.idle_img2.addItems(["IMG1", "IMG2"])
+        self.idle_img2.setCurrentIndex(1)  # Default to IMG2
+        self.idle_fields_layout.addWidget(self.idle_img2_label)
+        self.idle_fields_layout.addWidget(self.idle_img2)
+
+        self.idle_time1_label = self._make_field_label("Image 1 Duration (ms)")
+        self.idle_time1 = QLineEdit("60000")
+        self.idle_fields_layout.addWidget(self.idle_time1_label)
+        self.idle_fields_layout.addWidget(self.idle_time1)
+
+        self.idle_time2_label = self._make_field_label("Image 2 Duration (ms)")
+        self.idle_time2 = QLineEdit("60000")
+        self.idle_fields_layout.addWidget(self.idle_time2_label)
+        self.idle_fields_layout.addWidget(self.idle_time2)
+
+        layout.addWidget(self.idle_fields_container)
+
+        self.btn_set_idle = QPushButton("Set Idle Mode")
+        self.btn_set_idle.setObjectName("primaryBtn")
+        self.btn_set_idle.clicked.connect(self._send_idle_mode)
+        layout.addWidget(self.btn_set_idle)
+
+        self.idle_mode_feedback = QLabel("")
+        self.idle_mode_feedback.setObjectName("instructionLabel")
+        self.idle_mode_feedback.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.idle_mode_feedback.setVisible(False)
+        layout.addWidget(self.idle_mode_feedback)
+
+        # Initialize field visibility
+        self._on_idle_mode_change(0)
+
+        self.stack.addWidget(page)
+
+    def _build_page_idle_images(self):
+        page = QWidget()
+        layout = QVBoxLayout(page)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(8)
+
+        self.idle_img_file_path = None
+
+        layout.addWidget(self._make_field_label("Image Slot"))
+        self.idle_img_slot = QComboBox()
+        self.idle_img_slot.addItems(["IMG1 — Primary", "IMG2 — Secondary (for Cycle mode)"])
+        layout.addWidget(self.idle_img_slot)
+
+        self.btn_select_idle_img = QPushButton("Browse Image…")
+        self.btn_select_idle_img.setObjectName("secondaryBtn")
+        self.btn_select_idle_img.clicked.connect(self._select_idle_image)
+        layout.addWidget(self.btn_select_idle_img)
+
+        self.idle_img_label = QLabel("No image selected")
+        self.idle_img_label.setObjectName("instructionLabel")
+        self.idle_img_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(self.idle_img_label)
+
+        layout.addWidget(self._make_field_label("Screen Size"))
+        self.idle_img_size_dropdown = QComboBox()
+        self.idle_img_size_dropdown.addItems(["B30/B31 — 2.8 inch (240×320)", "B32/B33 — 3.5 inch (320×480)"])
+        layout.addWidget(self.idle_img_size_dropdown)
+
+        self.btn_upload_idle_img = QPushButton("Upload to Device")
+        self.btn_upload_idle_img.setObjectName("primaryBtn")
+        self.btn_upload_idle_img.clicked.connect(self._upload_idle_image)
+        self.btn_upload_idle_img.setEnabled(False)
+        layout.addWidget(self.btn_upload_idle_img)
+
+        self.stack.addWidget(page)
+
+    def _build_page_device_config(self):
+        page = QWidget()
+        layout = QVBoxLayout(page)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(8)
+
+        # Timeout settings
+        layout.addWidget(self._make_field_label("QR Screen Timeout (seconds)"))
+        self.timeout_qr = QLineEdit("300")
+        layout.addWidget(self.timeout_qr)
+
+        layout.addWidget(self._make_field_label("Pass/Fail Screen Timeout (seconds)"))
+        self.timeout_pf = QLineEdit("20")
+        layout.addWidget(self.timeout_pf)
+
+        self.btn_set_timeout = QPushButton("Set Timeouts")
+        self.btn_set_timeout.setObjectName("primaryBtn")
+        self.btn_set_timeout.clicked.connect(self._send_timeout)
+        layout.addWidget(self.btn_set_timeout)
+
+        self.timeout_feedback = QLabel("")
+        self.timeout_feedback.setObjectName("instructionLabel")
+        self.timeout_feedback.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.timeout_feedback.setVisible(False)
+        layout.addWidget(self.timeout_feedback)
+
+        # Separator
+        sep = QFrame()
+        sep.setObjectName("separator")
+        sep.setFrameShape(QFrame.Shape.HLine)
+        layout.addWidget(sep)
+
+        # Buzzer (only applicable to B30 and B32 variants)
+        self.buzzer_section_label = self._make_field_label("Buzzer (B30/B32 only)")
+        layout.addWidget(self.buzzer_section_label)
+
+        self.buzzer_container = QWidget()
+        buzzer_inner = QVBoxLayout(self.buzzer_container)
+        buzzer_inner.setContentsMargins(0, 0, 0, 0)
+        buzzer_inner.setSpacing(8)
+
+        buzzer_row = QHBoxLayout()
+        self.btn_buzzer_on = QPushButton("🔔  Enable")
+        self.btn_buzzer_on.setObjectName("secondaryBtn")
+        self.btn_buzzer_on.clicked.connect(self._send_buzzer_on)
+        buzzer_row.addWidget(self.btn_buzzer_on)
+
+        self.btn_buzzer_off = QPushButton("🔕  Disable")
+        self.btn_buzzer_off.setObjectName("secondaryBtn")
+        self.btn_buzzer_off.clicked.connect(self._send_buzzer_off)
+        buzzer_row.addWidget(self.btn_buzzer_off)
+        buzzer_inner.addLayout(buzzer_row)
+
+        self.buzzer_feedback = QLabel("")
+        self.buzzer_feedback.setObjectName("instructionLabel")
+        self.buzzer_feedback.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.buzzer_feedback.setVisible(False)
+        buzzer_inner.addWidget(self.buzzer_feedback)
+
+        layout.addWidget(self.buzzer_container)
 
         self.stack.addWidget(page)
 
@@ -782,6 +961,139 @@ class TrayFlyout(QWidget):
 
         threading.Thread(target=_work, daemon=True).start()
 
+    def _on_idle_mode_change(self, index):
+        """Show/hide fields based on selected idle mode."""
+        # Modes: 0=SLEEP_WAKE, 1=SINGLE, 2=CYCLE, 3=SLEEP
+        is_sleep_wake = (index == 0)
+        is_single = (index == 1)
+        is_cycle = (index == 2)
+        is_sleep = (index == 3)
+
+        # Image name — shown for all modes
+        self.idle_img1_label.setVisible(True)
+        self.idle_img1.setVisible(True)
+
+        # Sleep/Wake durations — only SLEEP_WAKE
+        self.idle_sleep_ms_label.setVisible(is_sleep_wake)
+        self.idle_sleep_ms.setVisible(is_sleep_wake)
+        self.idle_wake_ms_label.setVisible(is_sleep_wake)
+        self.idle_wake_ms.setVisible(is_sleep_wake)
+
+        # Second image + durations — only CYCLE
+        self.idle_img2_label.setVisible(is_cycle)
+        self.idle_img2.setVisible(is_cycle)
+        self.idle_time1_label.setVisible(is_cycle)
+        self.idle_time1.setVisible(is_cycle)
+        self.idle_time2_label.setVisible(is_cycle)
+        self.idle_time2.setVisible(is_cycle)
+
+        self.adjustSize()
+
+    def _send_idle_mode(self):
+        """Send the selected idle mode command."""
+        index = self.idle_mode_dropdown.currentIndex()
+        img1 = self.idle_img1.currentText()
+
+        if index == 0:  # SLEEP_WAKE
+            try:
+                sleep_ms = int(self.idle_sleep_ms.text())
+                wake_ms = int(self.idle_wake_ms.text())
+            except ValueError:
+                sleep_ms, wake_ms = 30000, 120000
+            self.device.set_idle_sleep_wake(img1, sleep_ms, wake_ms)
+        elif index == 1:  # SINGLE
+            self.device.set_idle_single(img1)
+        elif index == 2:  # CYCLE
+            img2 = self.idle_img2.currentText()
+            try:
+                time1 = int(self.idle_time1.text())
+                time2 = int(self.idle_time2.text())
+            except ValueError:
+                time1, time2 = 60000, 60000
+            self.device.set_idle_cycle(img1, time1, img2, time2)
+        elif index == 3:  # SLEEP
+            self.device.set_idle_sleep(img1)
+        self._show_feedback(self.idle_mode_feedback, "✓ Command sent")
+
+    def _send_timeout(self):
+        """Send the timeout command."""
+        try:
+            qr_sec = int(self.timeout_qr.text())
+            pf_sec = int(self.timeout_pf.text())
+        except ValueError:
+            qr_sec, pf_sec = 300, 20
+        self.device.set_timeout(qr_sec, pf_sec)
+        self._show_feedback(self.timeout_feedback, "✓ Command sent")
+
+    def _send_buzzer_on(self):
+        self.device.activate_buzzer(1)
+        self._show_feedback(self.buzzer_feedback, "✓ Buzzer enabled")
+
+    def _send_buzzer_off(self):
+        self.device.activate_buzzer(0)
+        self._show_feedback(self.buzzer_feedback, "✓ Buzzer disabled")
+
+    def _show_feedback(self, label, text, color="#16a34a"):
+        """Show a brief feedback message on a label, auto-hide after 3s."""
+        label.setText(text)
+        label.setStyleSheet(f"color: {color};")
+        label.setVisible(True)
+        # Auto-hide after 3 seconds
+        from PyQt6.QtCore import QTimer
+        QTimer.singleShot(3000, lambda: label.setVisible(False))
+
+    def _select_idle_image(self):
+        path, _ = QFileDialog.getOpenFileName(self, "Select Idle Image", "", "JPEG (*.jpg *.jpeg)")
+        if path:
+            self.idle_img_file_path = path
+            self.idle_img_label.setText(os.path.basename(path))
+            self.idle_img_label.setStyleSheet("color: #374151;")
+            if self.device.connected:
+                self.btn_upload_idle_img.setEnabled(True)
+
+    def _upload_idle_image(self):
+        if not self.idle_img_file_path:
+            return
+        self.btn_upload_idle_img.setEnabled(False)
+        self.btn_upload_idle_img.setText("Uploading…")
+
+        size_text = self.idle_img_size_dropdown.currentText()
+        width, height = (320, 480) if "3.5" in size_text else (240, 320)
+        is_slot2 = self.idle_img_slot.currentIndex() == 1
+
+        def _work():
+            try:
+                with open(self.idle_img_file_path, "rb") as f:
+                    raw = f.read()
+                img = Image.open(io.BytesIO(raw))
+                if img.mode != "RGB":
+                    img = img.convert("RGB")
+                img = img.resize((width, height), Image.Resampling.LANCZOS)
+
+                quality, jpeg_data = 95, b""
+                while quality > 5:
+                    buf = io.BytesIO()
+                    img.save(buf, format="JPEG", quality=quality, optimize=False)
+                    jpeg_data = buf.getvalue()
+                    if len(jpeg_data) <= 30 * 1024:
+                        break
+                    quality -= 5
+
+                if is_slot2:
+                    res = self.device.upload_idle_image_2(jpeg_data)
+                else:
+                    res = self.device.upload_idle_image(jpeg_data)
+
+                if res.get("success"):
+                    self.upload_status_updated.emit("✓ Idle image uploaded", "#16a34a", True)
+                else:
+                    self.upload_status_updated.emit(f"Error: {res.get('error', '?')}", "#dc2626", True)
+            except Exception as e:
+                logger.error(f"Idle image error: {e}")
+                self.upload_status_updated.emit("Processing error", "#dc2626", True)
+
+        threading.Thread(target=_work, daemon=True).start()
+
     def _rescan_ports(self):
         """Populate the port dropdown with available serial ports."""
         self.port_dropdown.clear()
@@ -808,21 +1120,31 @@ class TrayFlyout(QWidget):
 
     def _apply_device_screen_profile(self):
         """
-        Auto-select image target size from device ID:
+        Auto-select image target size and buzzer visibility from device ID:
         - B30/B31 -> 2.8" (240x320)
         - B32/B33 -> 3.5" (320x480)
+        - Buzzer: only available on B30 and B32
         """
         device_id = (getattr(self.device, "device_id", None) or "").upper().replace("_", "")
         if "B30" in device_id or "B31" in device_id:
             self.img_size_dropdown.setCurrentIndex(0)
             self.img_size_dropdown.setEnabled(False)
-            return
-        if "B32" in device_id or "B33" in device_id:
+            self.idle_img_size_dropdown.setCurrentIndex(0)
+            self.idle_img_size_dropdown.setEnabled(False)
+        elif "B32" in device_id or "B33" in device_id:
             self.img_size_dropdown.setCurrentIndex(1)
             self.img_size_dropdown.setEnabled(False)
-            return
-        # Unknown device id: allow manual selection.
-        self.img_size_dropdown.setEnabled(True)
+            self.idle_img_size_dropdown.setCurrentIndex(1)
+            self.idle_img_size_dropdown.setEnabled(False)
+        else:
+            # Unknown device id: allow manual selection.
+            self.img_size_dropdown.setEnabled(True)
+            self.idle_img_size_dropdown.setEnabled(True)
+
+        # Buzzer is only available on B30 and B32
+        has_buzzer = "B30" in device_id or "B32" in device_id
+        self.buzzer_container.setVisible(has_buzzer)
+        self.buzzer_section_label.setVisible(has_buzzer)
 
     # ── Slot handlers ────────────────────────────────────────────────────
 
@@ -860,6 +1182,8 @@ class TrayFlyout(QWidget):
             self.port_selection_container.setVisible(False)
             if self.img_file_path:
                 self.btn_upload_img.setEnabled(True)
+            if hasattr(self, 'idle_img_file_path') and self.idle_img_file_path:
+                self.btn_upload_idle_img.setEnabled(True)
         else:
             self.img_size_dropdown.setEnabled(True)
             self.status_label.setText("Disconnected")

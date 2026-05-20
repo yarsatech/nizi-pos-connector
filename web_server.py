@@ -262,6 +262,137 @@ def api_settings():
     return jsonify({"success": True, "results": results})
 
 
+@app.route("/api/timeout", methods=["POST"])
+def api_timeout():
+    """Set screen timeouts for QR and Pass/Fail displays (in seconds)."""
+    data = request.get_json(silent=True) or {}
+    try:
+        qr_sec = int(data.get("qr_timeout", 300))
+        pf_sec = int(data.get("pf_timeout", 20))
+        if not (1 <= qr_sec <= 3600) or not (1 <= pf_sec <= 3600):
+            return jsonify({"success": False, "error": "Timeout values must be between 1 and 3600."}), 400
+    except (ValueError, TypeError):
+        return jsonify({"success": False, "error": "Invalid timeout value type."}), 400
+    result = device.set_timeout(qr_sec, pf_sec)
+    return jsonify(result)
+
+
+@app.route("/api/buzzer", methods=["POST"])
+def api_buzzer():
+    """Enable or disable the buzzer (B30 has it disabled by default)."""
+    data = request.get_json(silent=True) or {}
+    try:
+        enabled = int(data.get("enabled", 1))
+        if enabled not in (0, 1):
+            return jsonify({"success": False, "error": "Buzzer value must be 0 or 1."}), 400
+    except (ValueError, TypeError):
+        return jsonify({"success": False, "error": "Invalid buzzer value."}), 400
+    result = device.activate_buzzer(enabled)
+    return jsonify(result)
+
+
+@app.route("/api/idle-mode", methods=["POST"])
+def api_idle_mode():
+    """
+    Set the device idle mode.
+    Modes: SINGLE, CYCLE, SLEEP, SLEEP_WAKE
+    """
+    data = request.get_json(silent=True) or {}
+    mode = (data.get("mode") or "").upper().strip()
+
+    if mode == "SINGLE":
+        image_name = data.get("image_name", "IMG1")
+        result = device.set_idle_single(image_name)
+    elif mode == "CYCLE":
+        img1 = data.get("img1", "IMG1")
+        time1 = int(data.get("time1", 60000))
+        img2 = data.get("img2", "IMG2")
+        time2 = int(data.get("time2", 60000))
+        result = device.set_idle_cycle(img1, time1, img2, time2)
+    elif mode == "SLEEP":
+        image_name = data.get("image_name", "IMG1")
+        result = device.set_idle_sleep(image_name)
+    elif mode == "SLEEP_WAKE":
+        image_name = data.get("image_name", "IMG1")
+        sleep_ms = int(data.get("sleep_ms", 30000))
+        wake_ms = int(data.get("wake_ms", 120000))
+        result = device.set_idle_sleep_wake(image_name, sleep_ms, wake_ms)
+    else:
+        return jsonify({"success": False, "error": f"Unknown idle mode: {mode!r}. Use SINGLE, CYCLE, SLEEP, or SLEEP_WAKE."}), 400
+
+    return jsonify(result)
+
+
+@app.route("/api/upload-idle-image", methods=["POST"])
+def api_upload_idle_image():
+    """Upload a persistent idle image (IMG1 or IMG2) to the device."""
+    if "image" not in request.files:
+        return jsonify({"success": False, "error": "No image file provided."}), 400
+    file = request.files["image"]
+
+    # Which slot: "1" (default) or "2"
+    slot = request.form.get("slot", "1").strip()
+    if slot not in ("1", "2"):
+        return jsonify({"success": False, "error": "Slot must be '1' or '2'."}), 400
+
+    # Validate file extension
+    ext = os.path.splitext(file.filename)[1].lower()
+    if ext not in ('.jpg', '.jpeg'):
+        return jsonify({"success": False, "error": "Only JPG/JPEG files are allowed."}), 400
+
+    raw_data = file.read()
+    if not raw_data:
+        return jsonify({"success": False, "error": "Empty image file."}), 400
+
+    try:
+        img = Image.open(io.BytesIO(raw_data))
+        if img.format != 'JPEG':
+            return jsonify({"success": False, "error": "Invalid JPEG content."}), 400
+
+        if img.mode != "RGB":
+            img = img.convert("RGB")
+
+        # Resize to requested dimensions
+        size_str = request.form.get("size", "320x480")
+        try:
+            width_str, height_str = size_str.split("x")
+            width, height = int(width_str), int(height_str)
+            if width > 800 or height > 800 or width < 10 or height < 10:
+                width, height = 320, 480
+        except ValueError:
+            width, height = 320, 480
+
+        img = img.resize((width, height), Image.Resampling.LANCZOS)
+
+        # Compress to fit under 30KB
+        max_size = 30 * 1024
+        quality = 95
+        jpeg_data = b""
+
+        while quality > 5:
+            output = io.BytesIO()
+            img.save(output, format="JPEG", quality=quality, optimize=False)
+            jpeg_data = output.getvalue()
+            if len(jpeg_data) <= max_size:
+                break
+            quality -= 5
+
+        if len(jpeg_data) > max_size:
+            logger.warning(f"Could not compress idle image under 30KB (size: {len(jpeg_data)} bytes)")
+
+        logger.info(f"Idle image (slot {slot}) processed: {len(jpeg_data)} bytes at quality={quality}")
+
+    except Exception as e:
+        logger.error(f"Idle image processing error: {e}")
+        return jsonify({"success": False, "error": f"Invalid image format or processing failed: {e}"}), 400
+
+    if slot == "2":
+        result = device.upload_idle_image_2(jpeg_data)
+    else:
+        result = device.upload_idle_image(jpeg_data)
+    return jsonify(result)
+
+
 # ── SocketIO events ──────────────────────────────────────────────────────
 
 
