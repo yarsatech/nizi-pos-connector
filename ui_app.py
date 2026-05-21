@@ -16,8 +16,8 @@ from PyQt6.QtWidgets import (
     QFrame, QApplication, QStackedWidget, QSizePolicy,
     QRadioButton, QButtonGroup, QDialog, QMessageBox
 )
-from PyQt6.QtCore import Qt, pyqtSignal, pyqtSlot
-from PyQt6.QtGui import QFont, QGuiApplication, QIcon
+from PyQt6.QtCore import Qt, pyqtSignal, pyqtSlot, QUrl
+from PyQt6.QtGui import QFont, QGuiApplication, QIcon, QDesktopServices
 
 from config import APP_NAME
 from theme_support import flyout_dark_stylesheet, prefers_light_theme
@@ -443,6 +443,19 @@ class TrayFlyout(QWidget):
         self.firmware_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.firmware_label.setVisible(False)
         card_layout.addWidget(self.firmware_label)
+
+        self.update_available_label = QLabel("⚠ Firmware update available")
+        self.update_available_label.setObjectName("instructionLabel")
+        self.update_available_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.update_available_label.setStyleSheet("color: #d97706; font-weight: 600;")
+        self.update_available_label.setVisible(False)
+        card_layout.addWidget(self.update_available_label)
+
+        self.btn_update_firmware = QPushButton("🔄  Open Update Page")
+        self.btn_update_firmware.setObjectName("warningBtn")
+        self.btn_update_firmware.clicked.connect(self._open_firmware_update_page)
+        self.btn_update_firmware.setVisible(False)
+        card_layout.addWidget(self.btn_update_firmware)
 
         self.btn_action = QPushButton("Connect Now")
         self.btn_action.setObjectName("connectBtn")
@@ -871,6 +884,23 @@ class TrayFlyout(QWidget):
         row2.addWidget(self.btn_format)
         layout.addLayout(row2)
 
+        row3 = QHBoxLayout()
+        self.btn_ble_on = QPushButton("📡  BLE ON")
+        self.btn_ble_on.setObjectName("secondaryBtn")
+        self.btn_ble_on.clicked.connect(lambda: self.device.set_ble(True))
+        row3.addWidget(self.btn_ble_on)
+
+        self.btn_ble_off = QPushButton("📡  BLE OFF")
+        self.btn_ble_off.setObjectName("secondaryBtn")
+        self.btn_ble_off.clicked.connect(lambda: self.device.set_ble(False))
+        row3.addWidget(self.btn_ble_off)
+        layout.addLayout(row3)
+
+        self.btn_buzzer_test = QPushButton("🔔  Buzzer Test")
+        self.btn_buzzer_test.setObjectName("secondaryBtn")
+        self.btn_buzzer_test.clicked.connect(lambda: self.device.buzzer_test())
+        layout.addWidget(self.btn_buzzer_test)
+
         self.stack.addWidget(page)
 
     # ── Page switching ───────────────────────────────────────────────────
@@ -969,13 +999,13 @@ class TrayFlyout(QWidget):
         is_cycle = (index == 2)
         is_sleep = (index == 3)
 
-        # Image name — shown for all modes
-        self.idle_img1_label.setVisible(True)
-        self.idle_img1.setVisible(True)
+        # Image name — shown for SINGLE and CYCLE modes only (SLEEP/SLEEP_WAKE use timings)
+        self.idle_img1_label.setVisible(is_single or is_cycle)
+        self.idle_img1.setVisible(is_single or is_cycle)
 
         # Sleep/Wake durations — only SLEEP_WAKE
-        self.idle_sleep_ms_label.setVisible(is_sleep_wake)
-        self.idle_sleep_ms.setVisible(is_sleep_wake)
+        self.idle_sleep_ms_label.setVisible(is_sleep_wake or is_sleep)
+        self.idle_sleep_ms.setVisible(is_sleep_wake or is_sleep)
         self.idle_wake_ms_label.setVisible(is_sleep_wake)
         self.idle_wake_ms.setVisible(is_sleep_wake)
 
@@ -996,11 +1026,11 @@ class TrayFlyout(QWidget):
 
         if index == 0:  # SLEEP_WAKE
             try:
-                sleep_ms = int(self.idle_sleep_ms.text())
                 wake_ms = int(self.idle_wake_ms.text())
+                sleep_ms = int(self.idle_sleep_ms.text())
             except ValueError:
-                sleep_ms, wake_ms = 30000, 120000
-            self.device.set_idle_sleep_wake(img1, sleep_ms, wake_ms)
+                wake_ms, sleep_ms = 120000, 30000
+            self.device.set_idle_sleep_wake(wake_ms, sleep_ms)
         elif index == 1:  # SINGLE
             self.device.set_idle_single(img1)
         elif index == 2:  # CYCLE
@@ -1012,7 +1042,11 @@ class TrayFlyout(QWidget):
                 time1, time2 = 60000, 60000
             self.device.set_idle_cycle(img1, time1, img2, time2)
         elif index == 3:  # SLEEP
-            self.device.set_idle_sleep(img1)
+            try:
+                sleep_ms = int(self.idle_sleep_ms.text())
+            except ValueError:
+                sleep_ms = 30000
+            self.device.set_idle_sleep(sleep_ms)
         self._show_feedback(self.idle_mode_feedback, "✓ Command sent")
 
     def _send_timeout(self):
@@ -1094,6 +1128,24 @@ class TrayFlyout(QWidget):
 
         threading.Thread(target=_work, daemon=True).start()
 
+    def _open_firmware_update_page(self):
+        """
+        Disconnect the device (freeing the COM port for the web flasher),
+        minimize the app, then open the firmware-update page in the browser.
+        """
+        update_info = getattr(self.device, "firmware_update_info", None) or {}
+        url = update_info.get("update_url") or "https://yarsa.tech/firmware-update"
+
+        # Disconnect so the web flasher can claim the serial port
+        if self.device.connected:
+            threading.Thread(target=self.device.disconnect, daemon=True).start()
+
+        # Minimize out of the way
+        self.showMinimized()
+
+        # Open browser
+        QDesktopServices.openUrl(QUrl(url))
+
     def _rescan_ports(self):
         """Populate the port dropdown with available serial ports."""
         self.port_dropdown.clear()
@@ -1171,6 +1223,17 @@ class TrayFlyout(QWidget):
             else:
                 self.firmware_label.setVisible(False)
 
+            # Show update badge if a newer firmware is available
+            update_info = getattr(self.device, "firmware_update_info", None) or {}
+            if update_info.get("update_available"):
+                latest = update_info.get("latest_clean", "")
+                self.update_available_label.setText(f"⚠ Update available: {latest}")
+                self.update_available_label.setVisible(True)
+                self.btn_update_firmware.setVisible(True)
+            else:
+                self.update_available_label.setVisible(False)
+                self.btn_update_firmware.setVisible(False)
+
             self.btn_action.setText("Disconnect")
             self.btn_action.setObjectName("disconnectBtn")
             self.btn_action.setStyleSheet("")  # re-apply from stylesheet
@@ -1190,6 +1253,8 @@ class TrayFlyout(QWidget):
             self.status_label.setStyleSheet("color: #64748b; font-size: 15px; font-weight: 600;")
             self.instruction_label.setText("Plug in device to get started.")
             self.firmware_label.setVisible(False)
+            self.update_available_label.setVisible(False)
+            self.btn_update_firmware.setVisible(False)
             self.btn_action.setText("Connect Now")
             self.btn_action.setObjectName("connectBtn")
             self.btn_action.setStyleSheet("")

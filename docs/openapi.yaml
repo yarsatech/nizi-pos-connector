@@ -197,8 +197,11 @@ paths:
     post:
       summary: Set device idle/inactivity mode
       description: |
-        Modes: SINGLE (static image), CYCLE (alternate two images),
-        SLEEP (backlight off), SLEEP_WAKE (scheduled sleep/wake cycle).
+        Modes:
+        - SINGLE: static background image (`image_name`).
+        - CYCLE: alternate two images (`img1`, `time1`, `img2`, `time2`).
+        - SLEEP: turn off backlight after inactivity (`sleep_ms`).
+        - SLEEP_WAKE: auto-cycle Wake→Sleep (`wake_ms`, `sleep_ms`).
       requestBody:
         required: true
         content:
@@ -213,31 +216,64 @@ paths:
                 image_name:
                   type: string
                   default: IMG1
-                  description: Image name (used by SINGLE, SLEEP, SLEEP_WAKE)
+                  description: Image to display — SINGLE mode only.
                 img1:
                   type: string
                   default: IMG1
-                  description: First image name (CYCLE mode)
+                  description: First image name — CYCLE mode.
                 img2:
                   type: string
                   default: IMG2
-                  description: Second image name (CYCLE mode)
+                  description: Second image name — CYCLE mode.
                 time1:
                   type: integer
                   default: 60000
-                  description: Image 1 display duration in ms (CYCLE mode)
+                  description: Image 1 display duration in ms — CYCLE mode.
                 time2:
                   type: integer
                   default: 60000
-                  description: Image 2 display duration in ms (CYCLE mode)
+                  description: Image 2 display duration in ms — CYCLE mode.
                 sleep_ms:
                   type: integer
                   default: 30000
-                  description: Sleep duration in ms (SLEEP_WAKE mode)
+                  description: Inactivity timeout before sleep (ms) — SLEEP and SLEEP_WAKE modes.
                 wake_ms:
                   type: integer
                   default: 120000
-                  description: Wake duration in ms (SLEEP_WAKE mode)
+                  description: Awake duration before next sleep (ms) — SLEEP_WAKE mode.
+      responses:
+        '200':
+          description: OK
+
+  /api/get-idle:
+    post:
+      summary: Query current idle configuration
+      description: Sends GET_IDLE to the device and returns the result.
+      responses:
+        '200':
+          description: OK
+
+  /api/buzzer-test:
+    post:
+      summary: Trigger diagnostic buzzer test (BUZZERTEST)
+      responses:
+        '200':
+          description: OK
+
+  /api/ble:
+    post:
+      summary: Enable or disable Bluetooth (BLE_ON / BLE_OFF)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [enabled]
+              properties:
+                enabled:
+                  type: boolean
+                  description: true → BLE_ON, false → BLE_OFF
       responses:
         '200':
           description: OK

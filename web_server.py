@@ -14,7 +14,6 @@ from flask_socketio import SocketIO
 from device_manager import DeviceManager
 
 from config import config
-from ota.github import normalize_github_repo
 
 logger = logging.getLogger(__name__)
 
@@ -148,25 +147,19 @@ def api_command():
 
 @app.route("/api/firmware")
 def api_firmware():
-    """Return the device firmware version and an update URL if available."""
+    """Return the device firmware version, update availability, and update URL."""
     firmware_id = device.firmware_id
     device_id = device.device_id
     connected = device.connected
-
-    # Build the firmware releases URL from the configured GitHub repo
-    update_url = None
-    repo_raw = getattr(config, "github_repo", "") or ""
-    repo = normalize_github_repo(repo_raw)
-    if repo:
-        # Link to GitHub releases page filtered by the device model
-        filter_query = device_id or ""
-        update_url = f"https://github.com/{repo}/releases?q=firmware+{filter_query}"
+    update_info = device.firmware_update_info or {}
 
     return jsonify({
         "connected": connected,
         "device_id": device_id,
         "firmware_id": firmware_id,
-        "update_url": update_url,
+        "update_available": update_info.get("update_available", False),
+        "latest_version": update_info.get("latest_clean"),
+        "update_url": update_info.get("update_url"),
     })
 
 
@@ -310,13 +303,12 @@ def api_idle_mode():
         time2 = int(data.get("time2", 60000))
         result = device.set_idle_cycle(img1, time1, img2, time2)
     elif mode == "SLEEP":
-        image_name = data.get("image_name", "IMG1")
-        result = device.set_idle_sleep(image_name)
-    elif mode == "SLEEP_WAKE":
-        image_name = data.get("image_name", "IMG1")
         sleep_ms = int(data.get("sleep_ms", 30000))
+        result = device.set_idle_sleep(sleep_ms)
+    elif mode == "SLEEP_WAKE":
         wake_ms = int(data.get("wake_ms", 120000))
-        result = device.set_idle_sleep_wake(image_name, sleep_ms, wake_ms)
+        sleep_ms = int(data.get("sleep_ms", 30000))
+        result = device.set_idle_sleep_wake(wake_ms, sleep_ms)
     else:
         return jsonify({"success": False, "error": f"Unknown idle mode: {mode!r}. Use SINGLE, CYCLE, SLEEP, or SLEEP_WAKE."}), 400
 
@@ -393,6 +385,31 @@ def api_upload_idle_image():
     return jsonify(result)
 
 
+@app.route("/api/get-idle", methods=["POST"])
+def api_get_idle():
+    """Query the current idle configuration from the device."""
+    result = device.get_idle()
+    return jsonify(result)
+
+
+@app.route("/api/buzzer-test", methods=["POST"])
+def api_buzzer_test():
+    """Trigger the diagnostic buzzer test (BUZZERTEST command)."""
+    result = device.buzzer_test()
+    return jsonify(result)
+
+
+@app.route("/api/ble", methods=["POST"])
+def api_ble():
+    """Enable or disable Bluetooth (BLE_ON / BLE_OFF)."""
+    data = request.get_json(silent=True) or {}
+    enabled = data.get("enabled")
+    if enabled is None:
+        return jsonify({"success": False, "error": "Missing 'enabled' field (true/false)."}), 400
+    result = device.set_ble(bool(enabled))
+    return jsonify(result)
+
+
 # ── SocketIO events ──────────────────────────────────────────────────────
 
 
@@ -405,7 +422,7 @@ def ws_connect(auth=None):
     
     socketio.emit(
         "device_status",
-        {"connected": device.connected, "port": device.port, "device_id": device.device_id, "firmware_id": device.firmware_id},
+        {"connected": device.connected, "port": device.port, "device_id": device.device_id, "firmware_id": device.firmware_id, "update_available": (device.firmware_update_info or {}).get("update_available", False)},
     )
 
 

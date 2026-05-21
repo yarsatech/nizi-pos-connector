@@ -11,6 +11,8 @@ import serial
 import serial.tools.list_ports
 import re
 
+from ota.firmware_api import check_update_available
+
 logger = logging.getLogger(__name__)
 
 DEVICE_ID_COMMAND = "DEVICE_ID"
@@ -41,6 +43,7 @@ class DeviceManager:
         self._port: str | None = None
         self._device_id: str | None = None
         self._firmware_id: str | None = None
+        self._firmware_update_info: dict | None = None  # cached update check result
         self._connected = False
         self._auto_connect = True  # Flag to enable/disable auto-connection polling
         self._on_status_change = None  # callback(connected: bool, port: str | None)
@@ -62,6 +65,11 @@ class DeviceManager:
     @property
     def firmware_id(self) -> str | None:
         return self._firmware_id
+
+    @property
+    def firmware_update_info(self) -> dict | None:
+        """Cached result of the last firmware update check, or None if not yet run."""
+        return self._firmware_update_info
 
     def enable_auto_connect(self, enabled: bool):
         """Enable or disable the background auto-connect polling logic."""
@@ -288,6 +296,12 @@ class DeviceManager:
                 self._connected = True
                 logger.info(f"Connected to {port} (device={self._device_id or 'unknown'}, firmware={self._firmware_id or 'unknown'})")
                 self._notify_status()
+                # Kick off firmware update check in background (non-blocking)
+                threading.Thread(
+                    target=self._background_firmware_check,
+                    daemon=True,
+                    name="firmware-update-check",
+                ).start()
                 return {"success": True, "port": port, "device_id": self._device_id, "firmware_id": self._firmware_id, "error": None}
             except serial.SerialException as exc:
                 return {"success": False, "port": port, "device_id": None, "error": str(exc)}
@@ -304,10 +318,40 @@ class DeviceManager:
             self._port = None
             self._device_id = None
             self._firmware_id = None
+            self._firmware_update_info = None
             self._connected = False
             logger.info("Disconnected")
             self._notify_status()
             return {"success": True}
+
+    def _background_firmware_check(self):
+        """
+        Run in a daemon thread after connect. Queries the Yarsa Tech firmware
+        API to check if a newer firmware is available for this device.
+        Caches the result in self._firmware_update_info.
+        """
+        # Snapshot values we need — avoid holding the lock during HTTP
+        device_id = self._device_id
+        firmware_id = self._firmware_id
+        port = self._port
+
+        if not device_id or not firmware_id:
+            logger.debug("Skipping firmware update check: no device_id or firmware_id")
+            return
+
+        logger.info(f"Checking firmware update for {device_id} (installed: {firmware_id})")
+        result = check_update_available(device_id, firmware_id, port)
+        self._firmware_update_info = result
+
+        if result.get("update_available"):
+            logger.info(
+                f"Firmware update available: {result['installed']} → {result['latest_clean']} "
+                f"| {result['update_url']}"
+            )
+            # Re-emit status so UI/WebSocket picks up the update badge
+            self._notify_status()
+        elif result.get("error"):
+            logger.debug(f"Firmware update check: {result['error']}")
 
     # ── Commands ────────────────────────────────────────────────────────
 
@@ -385,7 +429,21 @@ class DeviceManager:
         """Enable (1) or disable (0) the buzzer. B30 has buzzer disabled by default."""
         return self.send_command(f"ACTIVATE_BUZZER**{enabled}")
 
+    def buzzer_test(self):
+        """Trigger the diagnostic buzzer test."""
+        return self.send_command("BUZZERTEST")
+
+    # ── Bluetooth ───────────────────────────────────────────────────────
+
+    def set_ble(self, enabled: bool):
+        """Enable or disable Bluetooth (BLE_ON / BLE_OFF)."""
+        return self.send_command("BLE_ON" if enabled else "BLE_OFF")
+
     # ── Idle mode commands ──────────────────────────────────────────────
+
+    def get_idle(self):
+        """Query the current idle configuration from the device."""
+        return self.send_command("GET_IDLE")
 
     def set_idle_single(self, image_name: str = "IMG1"):
         """Fixed static background image idle mode."""
@@ -396,14 +454,13 @@ class DeviceManager:
         """Alternate between two images at defined intervals (ms)."""
         return self.send_command(f"IDLE_CYCLE**{img1}**{time1}**{img2}**{time2}")
 
-    def set_idle_sleep(self, image_name: str = "IMG1"):
-        """Turn off backlight after inactivity, activate status LED."""
-        return self.send_command(f"IDLE_SLEEP**{image_name}")
+    def set_idle_sleep(self, sleep_ms: int = 30000):
+        """Set inactivity sleep timer (ms); turns off backlight after the delay."""
+        return self.send_command(f"IDLE_SLEEP**{sleep_ms}")
 
-    def set_idle_sleep_wake(self, image_name: str = "IMG1",
-                            sleep_ms: int = 30000, wake_ms: int = 120000):
-        """Scheduled power-cycle: awake (display image) → sleep (backlight off)."""
-        return self.send_command(f"IDLE_SLEEP_WAKE**{image_name}**{sleep_ms}**{wake_ms}")
+    def set_idle_sleep_wake(self, wake_ms: int = 120000, sleep_ms: int = 30000):
+        """Auto-cycle between Wake and Sleep states: IDLE_SLEEP_WAKE**[W]**[S]."""
+        return self.send_command(f"IDLE_SLEEP_WAKE**{wake_ms}**{sleep_ms}")
 
     # ── Image upload ────────────────────────────────────────────────────
 

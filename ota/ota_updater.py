@@ -210,7 +210,7 @@ def main():
 
         # Restart new version.
         logger.info("Restarting updated app...")
-        subprocess.Popen([main_exe_path], cwd=target_dir, close_fds=True)
+        subprocess.Popen([main_exe_path], cwd=target_dir)
         return 0
     except Exception as e:
         logger.exception("OTA update failed")
