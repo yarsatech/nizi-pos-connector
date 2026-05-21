@@ -391,14 +391,6 @@ def api_get_idle():
     result = device.get_idle()
     return jsonify(result)
 
-
-@app.route("/api/buzzer-test", methods=["POST"])
-def api_buzzer_test():
-    """Trigger the diagnostic buzzer test (BUZZERTEST command)."""
-    result = device.buzzer_test()
-    return jsonify(result)
-
-
 @app.route("/api/ble", methods=["POST"])
 def api_ble():
     """Enable or disable Bluetooth (BLE_ON / BLE_OFF)."""

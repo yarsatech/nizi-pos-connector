@@ -14,7 +14,8 @@ from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QComboBox, QLineEdit, QTextEdit, QFileDialog,
     QFrame, QApplication, QStackedWidget, QSizePolicy,
-    QRadioButton, QButtonGroup, QDialog, QMessageBox
+    QRadioButton, QButtonGroup, QDialog, QMessageBox,
+    QSlider
 )
 from PyQt6.QtCore import Qt, pyqtSignal, pyqtSlot, QUrl
 from PyQt6.QtGui import QFont, QGuiApplication, QIcon, QDesktopServices
@@ -68,7 +69,8 @@ QLabel#fieldLabel {
     font-size: 8pt;
     color: #6b7280;
     font-weight: 500;
-    margin-top: 2px;
+    margin-top: 12px;
+    margin-bottom: 0px;
     background: transparent;
 }
 
@@ -96,9 +98,9 @@ QFrame#separator {
 
 QComboBox {
     font-size: 10pt;
-    padding: 8px 14px;
+    padding: 6px 12px;
     border: 1px solid #d1d5db;
-    border-radius: 10px;
+    border-radius: 8px;
     background-color: #ffffff;
     color: #111827;
     min-height: 20px;
@@ -143,9 +145,9 @@ QComboBox QAbstractItemView::item:hover {
 
 QLineEdit {
     font-size: 10pt;
-    padding: 9px 14px;
+    padding: 6px 12px;
     border: 1px solid #d1d5db;
-    border-radius: 10px;
+    border-radius: 8px;
     background-color: #ffffff;
     color: #111827;
 }
@@ -164,9 +166,9 @@ QLineEdit::selection {
 
 QTextEdit {
     font-size: 10pt;
-    padding: 8px 12px;
+    padding: 6px 12px;
     border: 1px solid #d1d5db;
-    border-radius: 10px;
+    border-radius: 8px;
     background-color: #ffffff;
     color: #111827;
 }
@@ -183,11 +185,11 @@ QTextEdit::selection {
 
 QPushButton#primaryBtn {
     font-size: 10pt;
-    padding: 10px 20px;
+    padding: 8px 16px;
     background-color: #ef4444;
     color: #ffffff;
     border: none;
-    border-radius: 10px;
+    border-radius: 8px;
     font-weight: 600;
 }
 QPushButton#primaryBtn:hover {
@@ -203,11 +205,11 @@ QPushButton#primaryBtn:disabled {
 
 QPushButton#secondaryBtn {
     font-size: 10pt;
-    padding: 10px 20px;
+    padding: 8px 16px;
     background-color: #ffffff;
     color: #374151;
     border: 1px solid #d1d5db;
-    border-radius: 10px;
+    border-radius: 8px;
     font-weight: 500;
 }
 QPushButton#secondaryBtn:hover {
@@ -217,11 +219,11 @@ QPushButton#secondaryBtn:hover {
 
 QPushButton#dangerBtn {
     font-size: 10pt;
-    padding: 10px 20px;
+    padding: 8px 16px;
     background-color: #fef2f2;
     color: #dc2626;
     border: 1px solid #fecaca;
-    border-radius: 10px;
+    border-radius: 8px;
     font-weight: 500;
 }
 QPushButton#dangerBtn:hover {
@@ -231,11 +233,11 @@ QPushButton#dangerBtn:hover {
 
 QPushButton#warningBtn {
     font-size: 10pt;
-    padding: 10px 20px;
+    padding: 8px 16px;
     background-color: #fffbeb;
     color: #d97706;
     border: 1px solid #fde68a;
-    border-radius: 10px;
+    border-radius: 8px;
     font-weight: 500;
 }
 QPushButton#warningBtn:hover {
@@ -316,6 +318,34 @@ QRadioButton::indicator:disabled {
     background-color: #f9fafb;
 }
 
+/* ── Sliders ──────────────────────────────────────────── */
+
+QSlider::groove:horizontal {
+    border-radius: 4px;
+    height: 8px;
+    background: #e5e7eb;
+}
+QSlider::sub-page:horizontal {
+    background: #ef4444;
+    border-radius: 4px;
+}
+QSlider::handle:horizontal {
+    background: #ffffff;
+    border: 1px solid #d1d5db;
+    width: 18px;
+    margin-top: -6px;
+    margin-bottom: -6px;
+    border-radius: 9px;
+}
+QSlider::handle:horizontal:hover {
+    background: #f9fafb;
+    border-color: #fca5a5;
+}
+QSlider::handle:horizontal:pressed {
+    background: #fef2f2;
+    border-color: #ef4444;
+}
+
 QDialog {
     background-color: #ffffff;
 }
@@ -341,6 +371,11 @@ class TrayFlyout(QWidget):
         self.setObjectName("mainWindow")
         self.setMinimumWidth(400)
         self.setMaximumWidth(460)
+        
+        # Constrain max height to 80% of screen to avoid overflow
+        screen_height = QGuiApplication.primaryScreen().availableGeometry().height()
+        self.setMaximumHeight(int(screen_height * 0.8))
+
         self.setWindowFlags(
             Qt.WindowType.Window
             | Qt.WindowType.WindowStaysOnTopHint
@@ -389,9 +424,26 @@ class TrayFlyout(QWidget):
     # ── UI Construction ──────────────────────────────────────────────────
 
     def _build_ui(self):
-        root = QVBoxLayout(self)
-        root.setContentsMargins(24, 24, 24, 20)
-        root.setSpacing(16)
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        
+        from PyQt6.QtWidgets import QScrollArea
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll.setStyleSheet("QScrollArea { background: transparent; } QWidget#scrollContent { background: transparent; }")
+        
+        scroll_content = QWidget()
+        scroll_content.setObjectName("scrollContent")
+        self.scroll_content = scroll_content
+        
+        root = QVBoxLayout(scroll_content)
+        root.setContentsMargins(16, 16, 16, 16)
+        root.setSpacing(12)
+        
+        scroll.setWidget(scroll_content)
+        main_layout.addWidget(scroll)
 
         # Header
         title = QLabel("NIZI POS")
@@ -402,8 +454,8 @@ class TrayFlyout(QWidget):
         card = QFrame()
         card.setObjectName("statusCard")
         card_layout = QVBoxLayout(card)
-        card_layout.setContentsMargins(16, 16, 16, 16)
-        card_layout.setSpacing(12)
+        card_layout.setContentsMargins(12, 12, 12, 12)
+        card_layout.setSpacing(8)
 
         # Mode Selection (Radio Group)
         self.mode_container = QHBoxLayout()
@@ -563,7 +615,7 @@ class TrayFlyout(QWidget):
         page = QWidget()
         layout = QVBoxLayout(page)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(8)
+        layout.setSpacing(4)
 
         layout.addWidget(self._make_field_label("Type"))
         self.status_type = QComboBox()
@@ -589,6 +641,7 @@ class TrayFlyout(QWidget):
         # Ensure fields match the dropdown initial selection (especially after reordering).
         self._on_status_type_change(self.status_type.currentText())
 
+        layout.addSpacing(12)
         self.btn_send_status = QPushButton("Send")
         self.btn_send_status.setObjectName("primaryBtn")
         self.btn_send_status.clicked.connect(self._send_status)
@@ -600,7 +653,7 @@ class TrayFlyout(QWidget):
         page = QWidget()
         layout = QVBoxLayout(page)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(8)
+        layout.setSpacing(4)
 
         layout.addWidget(self._make_field_label("Amount"))
         self.qr_amount = QLineEdit("Rs. 123.45")
@@ -616,6 +669,7 @@ class TrayFlyout(QWidget):
         self.qr_payload.setMaximumHeight(70)
         layout.addWidget(self.qr_payload)
 
+        layout.addSpacing(12)
         self.btn_send_qr = QPushButton("Send")
         self.btn_send_qr.setObjectName("primaryBtn")
         self.btn_send_qr.clicked.connect(self._send_qr)
@@ -627,7 +681,7 @@ class TrayFlyout(QWidget):
         page = QWidget()
         layout = QVBoxLayout(page)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(8)
+        layout.setSpacing(4)
 
         layout.addWidget(self._make_field_label("Title"))
         self.text_title = QLineEdit("Main Title")
@@ -643,6 +697,7 @@ class TrayFlyout(QWidget):
         self.text_msg.setMaximumHeight(70)
         layout.addWidget(self.text_msg)
 
+        layout.addSpacing(12)
         self.btn_send_text = QPushButton("Send")
         self.btn_send_text.setObjectName("primaryBtn")
         self.btn_send_text.clicked.connect(self._send_text)
@@ -654,7 +709,7 @@ class TrayFlyout(QWidget):
         page = QWidget()
         layout = QVBoxLayout(page)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(8)
+        layout.setSpacing(4)
 
         self.img_file_path = None
 
@@ -673,6 +728,7 @@ class TrayFlyout(QWidget):
         self.img_size_dropdown.addItems(["B30/B31 — 2.8 inch (240×320)", "B32/B33 — 3.5 inch (320×480)"])
         layout.addWidget(self.img_size_dropdown)
 
+        layout.addSpacing(12)
         self.btn_upload_img = QPushButton("Upload to Device")
         self.btn_upload_img.setObjectName("primaryBtn")
         self.btn_upload_img.clicked.connect(self._upload_image)
@@ -685,7 +741,7 @@ class TrayFlyout(QWidget):
         page = QWidget()
         layout = QVBoxLayout(page)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(8)
+        layout.setSpacing(4)
 
         layout.addWidget(self._make_field_label("Idle Mode"))
         self.idle_mode_dropdown = QComboBox()
@@ -739,6 +795,7 @@ class TrayFlyout(QWidget):
 
         layout.addWidget(self.idle_fields_container)
 
+        layout.addSpacing(12)
         self.btn_set_idle = QPushButton("Set Idle Mode")
         self.btn_set_idle.setObjectName("primaryBtn")
         self.btn_set_idle.clicked.connect(self._send_idle_mode)
@@ -759,7 +816,7 @@ class TrayFlyout(QWidget):
         page = QWidget()
         layout = QVBoxLayout(page)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(8)
+        layout.setSpacing(4)
 
         self.idle_img_file_path = None
 
@@ -783,6 +840,7 @@ class TrayFlyout(QWidget):
         self.idle_img_size_dropdown.addItems(["B30/B31 — 2.8 inch (240×320)", "B32/B33 — 3.5 inch (320×480)"])
         layout.addWidget(self.idle_img_size_dropdown)
 
+        layout.addSpacing(12)
         self.btn_upload_idle_img = QPushButton("Upload to Device")
         self.btn_upload_idle_img.setObjectName("primaryBtn")
         self.btn_upload_idle_img.clicked.connect(self._upload_idle_image)
@@ -795,19 +853,23 @@ class TrayFlyout(QWidget):
         page = QWidget()
         layout = QVBoxLayout(page)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(8)
+        layout.setSpacing(4)
 
         # ── Volume ──────────────────────────────────────────────────────
-        layout.addWidget(self._make_field_label("Volume (0 – 100)"))
-        vol_row = QHBoxLayout()
-        self.volume_input = QLineEdit("80")
-        self.volume_input.setPlaceholderText("0 – 100")
-        vol_row.addWidget(self.volume_input)
-        self.btn_set_volume = QPushButton("Set Volume")
-        self.btn_set_volume.setObjectName("primaryBtn")
-        self.btn_set_volume.clicked.connect(self._send_volume)
-        vol_row.addWidget(self.btn_set_volume)
-        layout.addLayout(vol_row)
+        vol_header = QHBoxLayout()
+        vol_header.addWidget(self._make_field_label("Volume"))
+        vol_header.addStretch()
+        self.volume_val_label = QLabel("80%")
+        self.volume_val_label.setStyleSheet("color: #374151; font-weight: 600; font-size: 9pt;")
+        vol_header.addWidget(self.volume_val_label)
+        layout.addLayout(vol_header)
+
+        self.volume_slider = QSlider(Qt.Orientation.Horizontal)
+        self.volume_slider.setRange(0, 100)
+        self.volume_slider.setValue(80)
+        self.volume_slider.valueChanged.connect(lambda v: self.volume_val_label.setText(f"{v}%"))
+        self.volume_slider.sliderReleased.connect(self._send_volume)
+        layout.addWidget(self.volume_slider)
 
         self.volume_feedback = QLabel("")
         self.volume_feedback.setObjectName("instructionLabel")
@@ -816,16 +878,20 @@ class TrayFlyout(QWidget):
         layout.addWidget(self.volume_feedback)
 
         # ── Brightness ──────────────────────────────────────────────────
-        layout.addWidget(self._make_field_label("Brightness (0 – 100)"))
-        bright_row = QHBoxLayout()
-        self.brightness_input = QLineEdit("80")
-        self.brightness_input.setPlaceholderText("0 – 100")
-        bright_row.addWidget(self.brightness_input)
-        self.btn_set_brightness = QPushButton("Set Brightness")
-        self.btn_set_brightness.setObjectName("primaryBtn")
-        self.btn_set_brightness.clicked.connect(self._send_brightness)
-        bright_row.addWidget(self.btn_set_brightness)
-        layout.addLayout(bright_row)
+        bright_header = QHBoxLayout()
+        bright_header.addWidget(self._make_field_label("Brightness"))
+        bright_header.addStretch()
+        self.brightness_val_label = QLabel("80%")
+        self.brightness_val_label.setStyleSheet("color: #374151; font-weight: 600; font-size: 9pt;")
+        bright_header.addWidget(self.brightness_val_label)
+        layout.addLayout(bright_header)
+
+        self.brightness_slider = QSlider(Qt.Orientation.Horizontal)
+        self.brightness_slider.setRange(0, 100)
+        self.brightness_slider.setValue(80)
+        self.brightness_slider.valueChanged.connect(lambda v: self.brightness_val_label.setText(f"{v}%"))
+        self.brightness_slider.sliderReleased.connect(self._send_brightness)
+        layout.addWidget(self.brightness_slider)
 
         self.brightness_feedback = QLabel("")
         self.brightness_feedback.setObjectName("instructionLabel")
@@ -926,44 +992,63 @@ class TrayFlyout(QWidget):
         page = QWidget()
         layout = QVBoxLayout(page)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(8)
+        layout.setSpacing(12)
 
         row1 = QHBoxLayout()
-        self.btn_idle = QPushButton("💤  IDLE")
+        self.btn_idle = QPushButton("💤 IDLE")
         self.btn_idle.setObjectName("secondaryBtn")
         self.btn_idle.clicked.connect(lambda: self.device.send_command("IDLE"))
         row1.addWidget(self.btn_idle)
 
-        self.btn_wake = QPushButton("☀️  WAKE")
+        self.btn_wake = QPushButton("☀️ WAKE")
         self.btn_wake.setObjectName("secondaryBtn")
         self.btn_wake.clicked.connect(lambda: self.device.send_command("WAKE"))
         row1.addWidget(self.btn_wake)
         layout.addLayout(row1)
 
         row2 = QHBoxLayout()
-        self.btn_reset = QPushButton("🔄  RESET")
+        self.btn_reset = QPushButton("🔄 RESET")
         self.btn_reset.setObjectName("warningBtn")
         self.btn_reset.clicked.connect(lambda: self.device.send_command("RESET"))
         row2.addWidget(self.btn_reset)
 
-        self.btn_format = QPushButton("🗑  FORMAT")
+        self.btn_format = QPushButton("🗑 FORMAT")
         self.btn_format.setObjectName("dangerBtn")
         self.btn_format.clicked.connect(lambda: self.device.send_command("FORMAT"))
         row2.addWidget(self.btn_format)
         layout.addLayout(row2)
+        self.btn_quick_wait = QPushButton("⏳ WAIT")
+        self.btn_quick_wait.setObjectName("secondaryBtn")
+        self.btn_quick_wait.clicked.connect(self._quick_send_wait)
+        layout.addWidget(self.btn_quick_wait)
 
-        self.btn_buzzer_test = QPushButton("🔔  Buzzer Test")
-        self.btn_buzzer_test.setObjectName("secondaryBtn")
-        self.btn_buzzer_test.clicked.connect(lambda: self.device.buzzer_test())
-        layout.addWidget(self.btn_buzzer_test)
+        self.btn_quick_pass = QPushButton("✅ PASS")
+        self.btn_quick_pass.setObjectName("secondaryBtn")
+        self.btn_quick_pass.clicked.connect(self._quick_send_pass)
+        layout.addWidget(self.btn_quick_pass)
+
+        self.btn_quick_qr = QPushButton("📲 Send QR")
+        self.btn_quick_qr.setObjectName("secondaryBtn")
+        self.btn_quick_qr.clicked.connect(self._send_qr)
+        layout.addWidget(self.btn_quick_qr)
 
         self.stack.addWidget(page)
 
     # ── Page switching ───────────────────────────────────────────────────
 
     def _switch_page(self, index):
+        for i in range(self.stack.count()):
+            self.stack.widget(i).setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Ignored)
+        self.stack.widget(index).setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Preferred)
+        
         self.stack.setCurrentIndex(index)
-        self.adjustSize()
+        
+        QApplication.processEvents()
+        if hasattr(self, 'scroll_content'):
+            ideal_h = self.scroll_content.sizeHint().height()
+            self.resize(self.width(), min(ideal_h, self.maximumHeight()))
+        else:
+            self.adjustSize()
 
     # ── Command logic ────────────────────────────────────────────────────
 
@@ -987,6 +1072,18 @@ class TrayFlyout(QWidget):
     def _send_status(self):
         cmd = self.status_type.currentText().split()[0]
         self.device.send_command(f"{cmd}**{self.status_field1.text()}**{self.status_field2.text()}")
+
+    def _quick_send_wait(self):
+        index = self.status_type.findText("WAIT", Qt.MatchFlag.MatchContains)
+        if index >= 0:
+            self.status_type.setCurrentIndex(index)
+        self._send_status()
+
+    def _quick_send_pass(self):
+        index = self.status_type.findText("PASS", Qt.MatchFlag.MatchContains)
+        if index >= 0:
+            self.status_type.setCurrentIndex(index)
+        self._send_status()
 
     def _send_qr(self):
         self.device.send_command(
@@ -1073,7 +1170,12 @@ class TrayFlyout(QWidget):
         self.idle_time2_label.setVisible(is_cycle)
         self.idle_time2.setVisible(is_cycle)
 
-        self.adjustSize()
+        QApplication.processEvents()
+        if hasattr(self, 'scroll_content'):
+            ideal_h = self.scroll_content.sizeHint().height()
+            self.resize(self.width(), min(ideal_h, self.maximumHeight()))
+        else:
+            self.adjustSize()
 
     def _send_idle_mode(self):
         """Send the selected idle mode command."""
@@ -1124,26 +1226,14 @@ class TrayFlyout(QWidget):
         self._show_feedback(self.buzzer_feedback, "✓ Buzzer disabled")
 
     def _send_volume(self):
-        try:
-            val = int(self.volume_input.text())
-            if not (0 <= val <= 100):
-                raise ValueError
-        except ValueError:
-            self._show_feedback(self.volume_feedback, "✗ Enter a value 0–100", "#dc2626")
-            return
+        val = self.volume_slider.value()
         self.device.set_volume(val)
-        self._show_feedback(self.volume_feedback, f"✓ Volume set to {val}")
+        self._show_feedback(self.volume_feedback, f"✓ Volume set to {val}%")
 
     def _send_brightness(self):
-        try:
-            val = int(self.brightness_input.text())
-            if not (0 <= val <= 100):
-                raise ValueError
-        except ValueError:
-            self._show_feedback(self.brightness_feedback, "✗ Enter a value 0–100", "#dc2626")
-            return
+        val = self.brightness_slider.value()
         self.device.set_brightness(val)
-        self._show_feedback(self.brightness_feedback, f"✓ Brightness set to {val}")
+        self._show_feedback(self.brightness_feedback, f"✓ Brightness set to {val}%")
 
     def _send_ble(self, enabled: bool):
         self.device.set_ble(enabled)
@@ -1218,6 +1308,10 @@ class TrayFlyout(QWidget):
         """
         update_info = getattr(self.device, "firmware_update_info", None) or {}
         url = update_info.get("update_url") or "https://yarsa.tech/firmware-update"
+
+        # Switch to manual mode to prevent auto-reconnection stealing the port back
+        self.radio_manual.setChecked(True)
+        self._on_mode_changed(self.radio_manual)
 
         # Disconnect so the web flasher can claim the serial port
         if self.device.connected:

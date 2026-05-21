@@ -429,10 +429,6 @@ class DeviceManager:
         """Enable (1) or disable (0) the buzzer. B30 has buzzer disabled by default."""
         return self.send_command(f"ACTIVATE_BUZZER**{enabled}")
 
-    def buzzer_test(self):
-        """Trigger the diagnostic buzzer test."""
-        return self.send_command("BUZZERTEST")
-
     # ── Bluetooth ───────────────────────────────────────────────────────
 
     def set_ble(self, enabled: bool):

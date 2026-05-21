@@ -252,14 +252,6 @@ paths:
       responses:
         '200':
           description: OK
-
-  /api/buzzer-test:
-    post:
-      summary: Trigger diagnostic buzzer test (BUZZERTEST)
-      responses:
-        '200':
-          description: OK
-
   /api/ble:
     post:
       summary: Enable or disable Bluetooth (BLE_ON / BLE_OFF)
