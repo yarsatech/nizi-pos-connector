@@ -797,7 +797,49 @@ class TrayFlyout(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(8)
 
-        # Timeout settings
+        # ── Volume ──────────────────────────────────────────────────────
+        layout.addWidget(self._make_field_label("Volume (0 – 100)"))
+        vol_row = QHBoxLayout()
+        self.volume_input = QLineEdit("80")
+        self.volume_input.setPlaceholderText("0 – 100")
+        vol_row.addWidget(self.volume_input)
+        self.btn_set_volume = QPushButton("Set Volume")
+        self.btn_set_volume.setObjectName("primaryBtn")
+        self.btn_set_volume.clicked.connect(self._send_volume)
+        vol_row.addWidget(self.btn_set_volume)
+        layout.addLayout(vol_row)
+
+        self.volume_feedback = QLabel("")
+        self.volume_feedback.setObjectName("instructionLabel")
+        self.volume_feedback.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.volume_feedback.setVisible(False)
+        layout.addWidget(self.volume_feedback)
+
+        # ── Brightness ──────────────────────────────────────────────────
+        layout.addWidget(self._make_field_label("Brightness (0 – 100)"))
+        bright_row = QHBoxLayout()
+        self.brightness_input = QLineEdit("80")
+        self.brightness_input.setPlaceholderText("0 – 100")
+        bright_row.addWidget(self.brightness_input)
+        self.btn_set_brightness = QPushButton("Set Brightness")
+        self.btn_set_brightness.setObjectName("primaryBtn")
+        self.btn_set_brightness.clicked.connect(self._send_brightness)
+        bright_row.addWidget(self.btn_set_brightness)
+        layout.addLayout(bright_row)
+
+        self.brightness_feedback = QLabel("")
+        self.brightness_feedback.setObjectName("instructionLabel")
+        self.brightness_feedback.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.brightness_feedback.setVisible(False)
+        layout.addWidget(self.brightness_feedback)
+
+        # Separator
+        sep1 = QFrame()
+        sep1.setObjectName("separator")
+        sep1.setFrameShape(QFrame.Shape.HLine)
+        layout.addWidget(sep1)
+
+        # ── Timeouts ────────────────────────────────────────────────────
         layout.addWidget(self._make_field_label("QR Screen Timeout (seconds)"))
         self.timeout_qr = QLineEdit("300")
         layout.addWidget(self.timeout_qr)
@@ -818,12 +860,38 @@ class TrayFlyout(QWidget):
         layout.addWidget(self.timeout_feedback)
 
         # Separator
-        sep = QFrame()
-        sep.setObjectName("separator")
-        sep.setFrameShape(QFrame.Shape.HLine)
-        layout.addWidget(sep)
+        sep2 = QFrame()
+        sep2.setObjectName("separator")
+        sep2.setFrameShape(QFrame.Shape.HLine)
+        layout.addWidget(sep2)
 
-        # Buzzer (only applicable to B30 and B32 variants)
+        # ── Bluetooth ───────────────────────────────────────────────────
+        layout.addWidget(self._make_field_label("Bluetooth"))
+        ble_row = QHBoxLayout()
+        self.btn_ble_on = QPushButton("📡  BLE ON")
+        self.btn_ble_on.setObjectName("secondaryBtn")
+        self.btn_ble_on.clicked.connect(lambda: self._send_ble(True))
+        ble_row.addWidget(self.btn_ble_on)
+
+        self.btn_ble_off = QPushButton("📡  BLE OFF")
+        self.btn_ble_off.setObjectName("secondaryBtn")
+        self.btn_ble_off.clicked.connect(lambda: self._send_ble(False))
+        ble_row.addWidget(self.btn_ble_off)
+        layout.addLayout(ble_row)
+
+        self.ble_feedback = QLabel("")
+        self.ble_feedback.setObjectName("instructionLabel")
+        self.ble_feedback.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.ble_feedback.setVisible(False)
+        layout.addWidget(self.ble_feedback)
+
+        # Separator
+        sep3 = QFrame()
+        sep3.setObjectName("separator")
+        sep3.setFrameShape(QFrame.Shape.HLine)
+        layout.addWidget(sep3)
+
+        # ── Buzzer (B30/B32 only) ───────────────────────────────────────
         self.buzzer_section_label = self._make_field_label("Buzzer (B30/B32 only)")
         layout.addWidget(self.buzzer_section_label)
 
@@ -883,18 +951,6 @@ class TrayFlyout(QWidget):
         self.btn_format.clicked.connect(lambda: self.device.send_command("FORMAT"))
         row2.addWidget(self.btn_format)
         layout.addLayout(row2)
-
-        row3 = QHBoxLayout()
-        self.btn_ble_on = QPushButton("📡  BLE ON")
-        self.btn_ble_on.setObjectName("secondaryBtn")
-        self.btn_ble_on.clicked.connect(lambda: self.device.set_ble(True))
-        row3.addWidget(self.btn_ble_on)
-
-        self.btn_ble_off = QPushButton("📡  BLE OFF")
-        self.btn_ble_off.setObjectName("secondaryBtn")
-        self.btn_ble_off.clicked.connect(lambda: self.device.set_ble(False))
-        row3.addWidget(self.btn_ble_off)
-        layout.addLayout(row3)
 
         self.btn_buzzer_test = QPushButton("🔔  Buzzer Test")
         self.btn_buzzer_test.setObjectName("secondaryBtn")
@@ -1066,6 +1122,33 @@ class TrayFlyout(QWidget):
     def _send_buzzer_off(self):
         self.device.activate_buzzer(0)
         self._show_feedback(self.buzzer_feedback, "✓ Buzzer disabled")
+
+    def _send_volume(self):
+        try:
+            val = int(self.volume_input.text())
+            if not (0 <= val <= 100):
+                raise ValueError
+        except ValueError:
+            self._show_feedback(self.volume_feedback, "✗ Enter a value 0–100", "#dc2626")
+            return
+        self.device.set_volume(val)
+        self._show_feedback(self.volume_feedback, f"✓ Volume set to {val}")
+
+    def _send_brightness(self):
+        try:
+            val = int(self.brightness_input.text())
+            if not (0 <= val <= 100):
+                raise ValueError
+        except ValueError:
+            self._show_feedback(self.brightness_feedback, "✗ Enter a value 0–100", "#dc2626")
+            return
+        self.device.set_brightness(val)
+        self._show_feedback(self.brightness_feedback, f"✓ Brightness set to {val}")
+
+    def _send_ble(self, enabled: bool):
+        self.device.set_ble(enabled)
+        label = "ON" if enabled else "OFF"
+        self._show_feedback(self.ble_feedback, f"✓ Bluetooth {label}")
 
     def _show_feedback(self, label, text, color="#16a34a"):
         """Show a brief feedback message on a label, auto-hide after 3s."""

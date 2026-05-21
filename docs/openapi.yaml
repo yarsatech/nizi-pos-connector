@@ -188,7 +188,7 @@ paths:
                 enabled:
                   type: integer
                   enum: [0, 1]
-                  description: 1 to enable, 0 to disable. B30 has buzzer disabled by default.
+                  description: 1 to enable, 0 to disable. B30 and B32 devices have buzzer disabled by default.
       responses:
         '200':
           description: OK

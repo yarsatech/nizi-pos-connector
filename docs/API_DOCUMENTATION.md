@@ -132,7 +132,7 @@ Configures screen timeouts to prevent burn-in. QR and Pass/Fail screens auto-ret
 
 ### 9. Buzzer Control
 **`POST /api/buzzer`**  
-Enable or disable the buzzer. B30 devices have the buzzer disabled by default.
+Enable or disable the buzzer. B30 and B32 devices have the buzzer disabled by default.
 
 **Body (JSON):**
 ```json
@@ -144,7 +144,27 @@ Enable or disable the buzzer. B30 devices have the buzzer disabled by default.
 
 ---
 
-### 10. Set Idle Mode
+### 10. Buzzer Test
+**`POST /api/buzzer-test`**  
+Triggers a diagnostic buzzer test (BUZZERTEST command).
+
+---
+
+### 11. Bluetooth Control
+**`POST /api/ble`**  
+Enable or disable Bluetooth on the device.
+
+**Body (JSON):**
+```json
+{
+  "enabled": true
+}
+```
+*Set `true` to turn ON, `false` to turn OFF.*
+
+---
+
+### 12. Set Idle Mode
 **`POST /api/idle-mode`**  
 Configures the device idle/inactivity behavior.
 
@@ -174,23 +194,28 @@ Configures the device idle/inactivity behavior.
 ```json
 {
   "mode": "SLEEP",
-  "image_name": "IMG1"
+  "sleep_ms": 30000
 }
 ```
 
-**SLEEP_WAKE** — Scheduled sleep/wake cycle (default mode):
+**SLEEP_WAKE** — Scheduled sleep/wake cycle:
 ```json
 {
   "mode": "SLEEP_WAKE",
-  "image_name": "IMG1",
-  "sleep_ms": 30000,
-  "wake_ms": 120000
+  "wake_ms": 120000,
+  "sleep_ms": 30000
 }
 ```
 
 ---
 
-### 11. Upload Idle Image
+### 13. Get Idle Mode
+**`POST /api/get-idle`**  
+Queries the current idle configuration from the device (GET_IDLE).
+
+---
+
+### 14. Upload Idle Image
 **`POST /api/upload-idle-image`**  
 Uploads a persistent image for idle display modes (IMG1 or IMG2).
 
