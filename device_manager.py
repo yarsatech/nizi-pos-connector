@@ -46,6 +46,7 @@ class DeviceManager:
         self._firmware_update_info: dict | None = None  # cached update check result
         self._connected = False
         self._auto_connect = True  # Flag to enable/disable auto-connection polling
+        self._auto_connect_suspend_until = 0.0
         self._on_status_change = None  # callback(connected: bool, port: str | None)
 
     # ── Properties ──────────────────────────────────────────────────────
@@ -76,6 +77,11 @@ class DeviceManager:
         self._auto_connect = enabled
         logger.info(f"Auto-connect polling set to: {enabled}")
 
+    def suspend_auto_connect(self, duration_sec: int):
+        """Temporarily suspend auto-connect polling for the given duration."""
+        self._auto_connect_suspend_until = time.time() + duration_sec
+        logger.info(f"Auto-connect suspended for {duration_sec} seconds")
+
     def set_status_callback(self, callback):
         """Set a callback for connection status changes: callback(connected, port)."""
         self._on_status_change = callback
@@ -91,7 +97,7 @@ class DeviceManager:
         """Start a background thread that polls for the device if disconnected."""
         def _poll():
             while True:
-                if self._auto_connect:
+                if self._auto_connect and time.time() > self._auto_connect_suspend_until:
                     if not self.connected:
                         port = self.auto_detect()
                         if port:

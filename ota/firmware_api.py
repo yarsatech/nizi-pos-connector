@@ -130,6 +130,38 @@ def get_firmware_by_model(model: str) -> dict:
     logger.debug(f"Firmware API response for {model}: {data}")
     return data
 
+def get_languages() -> list[str]:
+    """
+    Call GET /get_languages and return the list of languages from the ERP.
+    """
+    url = f"{_BASE_URL}.get_languages"
+    logger.debug(f"Firmware API request: {url}")
+
+    try:
+        req = urllib.request.Request(
+            url,
+            headers={"Accept": "application/json", "User-Agent": "NiziPOSConnector"},
+        )
+        with urllib.request.urlopen(req, timeout=_REQUEST_TIMEOUT) as resp:
+            raw = resp.read().decode("utf-8", errors="ignore")
+    except Exception as exc:
+        logger.warning(f"Firmware API request failed: {exc}")
+        return []
+
+    try:
+        payload = json.loads(raw)
+        envelope = payload.get("message", {})
+    except json.JSONDecodeError as exc:
+        logger.warning(f"Firmware API returned invalid JSON: {exc}")
+        return []
+
+    if not envelope.get("success"):
+        logger.warning("Firmware API get_languages returned failure.")
+        return []
+
+    data = envelope.get("data", {})
+    return data.get("languages", [])
+
 
 # ── Update check ─────────────────────────────────────────────────────────────
 
@@ -203,8 +235,9 @@ def check_update_available(
 
 def build_update_url(
     model: str,
-    firmware_version: str,
+    firmware_version: str | None = None,
     port: str | None = None,
+    language: str | None = None,
 ) -> str:
     """
     Build the firmware-update web page URL with query parameters.
@@ -219,6 +252,8 @@ def build_update_url(
         params["firmware"] = firmware_version
     if port:
         params["port"] = port
+    if language:
+        params["language"] = language
 
     if params:
         return f"{_FIRMWARE_UPDATE_PAGE}?{urllib.parse.urlencode(params)}"

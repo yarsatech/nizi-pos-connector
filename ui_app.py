@@ -22,6 +22,7 @@ from PyQt6.QtGui import QFont, QGuiApplication, QIcon, QDesktopServices
 
 from config import APP_NAME
 from theme_support import flyout_dark_stylesheet, prefers_light_theme
+from ota.firmware_api import get_languages, build_update_url, extract_model_code
 
 logger = logging.getLogger(__name__)
 
@@ -360,6 +361,7 @@ class TrayFlyout(QWidget):
     status_updated = pyqtSignal(bool, str)
     upload_status_updated = pyqtSignal(str, str, bool)
     toggle_visibility = pyqtSignal()
+    languages_loaded = pyqtSignal(list)
 
     def __init__(self, device_manager, web_port=9121, on_quit=None):
         super().__init__()
@@ -403,6 +405,7 @@ class TrayFlyout(QWidget):
         self.status_updated.connect(self._on_status_updated)
         self.upload_status_updated.connect(self._on_upload_status)
         self.toggle_visibility.connect(self._toggle_internal)
+        self.languages_loaded.connect(self._on_languages_loaded)
 
         icon_path = os.path.join("assets", "icon.ico")
         if os.path.exists(icon_path):
@@ -420,6 +423,8 @@ class TrayFlyout(QWidget):
 
         self.device.set_status_callback(_on_status_wrapper)
         self._on_status_updated(self.device.connected, self.device.port or "")
+
+        threading.Thread(target=self._fetch_languages, daemon=True).start()
 
     # ── UI Construction ──────────────────────────────────────────────────
 
@@ -957,6 +962,26 @@ class TrayFlyout(QWidget):
         sep3.setFrameShape(QFrame.Shape.HLine)
         layout.addWidget(sep3)
 
+        # ── Language Firmware ───────────────────────────────────────────
+        layout.addWidget(self._make_field_label("Language Firmware Update"))
+        self.language_dropdown = QComboBox()
+        self.language_dropdown.addItem("Loading languages...")
+        self.language_dropdown.setEnabled(False)
+        layout.addWidget(self.language_dropdown)
+
+        layout.addSpacing(12)
+        self.btn_update_language = QPushButton("🔄 Download Language Firmware")
+        self.btn_update_language.setObjectName("secondaryBtn")
+        self.btn_update_language.clicked.connect(self._open_language_update_page)
+        self.btn_update_language.setEnabled(False)
+        layout.addWidget(self.btn_update_language)
+
+        # Separator
+        sep4 = QFrame()
+        sep4.setObjectName("separator")
+        sep4.setFrameShape(QFrame.Shape.HLine)
+        layout.addWidget(sep4)
+
         # ── Buzzer (B30/B32 only) ───────────────────────────────────────
         self.buzzer_section_label = self._make_field_label("Buzzer (B30/B32 only)")
         layout.addWidget(self.buzzer_section_label)
@@ -1301,6 +1326,43 @@ class TrayFlyout(QWidget):
 
         threading.Thread(target=_work, daemon=True).start()
 
+    def _fetch_languages(self):
+        langs = get_languages()
+        self.languages_loaded.emit(langs)
+
+    @pyqtSlot(list)
+    def _on_languages_loaded(self, langs: list[str]):
+        self.language_dropdown.clear()
+        if langs:
+            self.language_dropdown.addItems(langs)
+            self.language_dropdown.setEnabled(True)
+            self.btn_update_language.setEnabled(True)
+        else:
+            self.language_dropdown.addItem("Failed to load languages")
+
+    def _open_language_update_page(self):
+        lang = self.language_dropdown.currentText()
+        if not lang or "Loading" in lang or "Failed" in lang:
+            return
+
+        model = getattr(self.device, "model", None)
+        if not model:
+            model = extract_model_code(self.device.device_id)
+        if not model:
+            model = "B31"
+
+        url = build_update_url(model=model, port=self.device.port, language=lang)
+
+        # Suspend auto-connection for 2 minutes (120 seconds) to let the flasher work
+        self.device.suspend_auto_connect(120)
+
+        # Disconnect so the web flasher can claim the serial port
+        if self.device.connected:
+            threading.Thread(target=self.device.disconnect, daemon=True).start()
+
+        self.showMinimized()
+        QDesktopServices.openUrl(QUrl(url))
+
     def _open_firmware_update_page(self):
         """
         Disconnect the device (freeing the COM port for the web flasher),
@@ -1309,9 +1371,8 @@ class TrayFlyout(QWidget):
         update_info = getattr(self.device, "firmware_update_info", None) or {}
         url = update_info.get("update_url") or "https://yarsa.tech/firmware-update"
 
-        # Switch to manual mode to prevent auto-reconnection stealing the port back
-        self.radio_manual.setChecked(True)
-        self._on_mode_changed(self.radio_manual)
+        # Suspend auto-connection for 2 minutes (120 seconds) to let the flasher work
+        self.device.suspend_auto_connect(120)
 
         # Disconnect so the web flasher can claim the serial port
         if self.device.connected:
