@@ -1,0 +1,67 @@
+#!/bin/bash
+
+# Log file for debugging postinstall
+LOGFILE="/private/var/log/nizi-pos-connector-postinstall.log"
+exec >> "$LOGFILE" 2>&1
+
+echo "--------------------------------------------------"
+echo "Starting postinstall script: $(date)"
+echo "--------------------------------------------------"
+
+PLIST_PATH="/Library/LaunchAgents/com.yarsatech.niziposconnector.plist"
+
+# 1. Create LaunchAgent for Autostart at login
+cat << 'LAUNCHAGENT' > "$PLIST_PATH"
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.yarsatech.niziposconnector</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Applications/NiziPOSConnector.app/Contents/MacOS/NiziPOSConnector</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>ProcessType</key>
+    <string>Interactive</string>
+</dict>
+</plist>
+LAUNCHAGENT
+
+# 2. Fix ownership and permissions (standard for LaunchAgents)
+chmod 644 "$PLIST_PATH"
+chown root:wheel "$PLIST_PATH"
+echo "LaunchAgent created and configured at $PLIST_PATH"
+
+# 3. Determine current logged-in console user
+CURRENT_USER=$(stat -f '%Su' /dev/console)
+USER_ID=$(id -u "$CURRENT_USER")
+
+echo "Current logged-in user: $CURRENT_USER (UID: $USER_ID)"
+
+# 4. Load agent and launch application immediately in user's GUI session
+if [ "$CURRENT_USER" != "loginwindow" ] && [ -n "$CURRENT_USER" ]; then
+    # Unload existing launch agent first to avoid duplicate load errors
+    echo "Unloading existing LaunchAgent (if any) as $CURRENT_USER..."
+    sudo -u "$CURRENT_USER" launchctl unload "$PLIST_PATH" >/dev/null 2>&1
+    
+    # Load the LaunchAgent in the user's GUI session
+    echo "Loading LaunchAgent for $CURRENT_USER..."
+    sudo -u "$CURRENT_USER" launchctl load "$PLIST_PATH"
+    
+    # Add to user's Login Items (Open at Login)
+    echo "Adding NiziPOSConnector to Login Items for $CURRENT_USER..."
+    sudo -u "$CURRENT_USER" osascript -e 'tell application "System Events" to delete (every login item whose name is "NiziPOSConnector")' >/dev/null 2>&1
+    sudo -u "$CURRENT_USER" osascript -e 'tell application "System Events" to make new login item at end with properties {path:"/Applications/NiziPOSConnector.app", name:"NiziPOSConnector", hidden:false}' >/dev/null 2>&1
+
+    # Launch the application immediately
+    echo "Launching NiziPOSConnector app for $CURRENT_USER..."
+    sudo -u "$CURRENT_USER" open -a "/Applications/NiziPOSConnector.app"
+else
+    echo "No active GUI session found (user is not logged in). Skipping immediate launch."
+fi
+
+echo "Postinstall script finished successfully."
+exit 0

@@ -7,6 +7,7 @@ from __future__ import annotations
 import os
 import platform
 import subprocess
+from typing import Optional
 
 
 def _windows_prefers_light_theme() -> bool:
@@ -44,7 +45,7 @@ def _linux_prefers_dark_theme() -> bool:
     return False
 
 
-def prefers_light_theme(*, palette_lightness: int | None = None) -> bool:
+def prefers_light_theme(*, palette_lightness: Optional[int] = None) -> bool:
     """
     True if the OS/app likely prefers a light theme.
     """
@@ -117,13 +118,15 @@ def flyout_dark_theme_tokens() -> dict[str, str]:
     }
 
 
-def flyout_dark_stylesheet(tokens: dict[str, str] | None = None) -> str:
+def flyout_dark_stylesheet(tokens: Optional[dict[str, str]] = None) -> str:
     c = tokens or flyout_dark_theme_tokens()
     return f"""
 QWidget#mainWindow {{ background-color: {c['window_bg']}; }}
 QLabel#headerTitle, QLabel#sectionTitle {{ color: {c['text_primary']}; }}
 QLabel#statusLabel {{ color: {c['text_primary']}; }}
 QLabel#instructionLabel, QLabel#fieldLabel, QLabel#modeLabel {{ color: {c['text_muted']}; }}
+QLabel#imagePreview {{ border: 2px dashed {c['border']}; background-color: {c['input_bg']}; color: {c['placeholder']}; }}
+QTextEdit#logDisplay {{ background-color: {c['input_bg']}; border: 1px solid {c['border']}; }}
 QFrame#statusCard {{ background-color: {c['card_bg']}; border: 1px solid {c['border']}; }}
 QFrame#separator {{ background-color: {c['border']}; }}
 QComboBox, QLineEdit, QTextEdit {{
@@ -142,8 +145,24 @@ QComboBox QAbstractItemView {{
     border: 1px solid {c['border']};
     selection-background-color: {c['selection_bg']};
     selection-color: {c['text_primary']};
+    padding: 6px;
+    border-radius: 12px;
 }}
-QComboBox QAbstractItemView::item:hover {{ background-color: {c['selection_bg']}; }}
+QComboBox QAbstractItemView::item {{
+    padding: 10px 16px;
+    margin: 2px 0px;
+    border-radius: 8px;
+    color: {c['text_primary']};
+}}
+QComboBox QAbstractItemView::item:hover {{
+    background-color: {c['selection_bg']};
+    color: {c['text_primary']};
+}}
+QComboBox QAbstractItemView::item:selected {{
+    background-color: {c['danger_bg']};
+    color: {c['danger_text']};
+    font-weight: 600;
+}}
 QLineEdit::placeholder {{ color: {c['placeholder']}; }}
 QLineEdit::selection {{
     background-color: {c['danger_bg']};

@@ -1,4 +1,5 @@
 import argparse
+from typing import Optional
 import logging
 import os
 import shutil
@@ -19,7 +20,7 @@ from config import (
 logger = logging.getLogger("nizi_pos_connector.ota_updater")
 
 
-def _configure_logger(log_file: str | None):
+def _configure_logger(log_file: Optional[str]):
     if not log_file:
         return
     try:
@@ -53,7 +54,7 @@ def _safe_delete_entry(path: str):
         shutil.rmtree(path, ignore_errors=True)
 
 
-def _resolve_main_exe_path(base_dir: str) -> str | None:
+def _resolve_main_exe_path(base_dir: str) -> Optional[str]:
     name = (MAIN_EXE_BASENAME or "").strip()
     if not name:
         return None
@@ -75,7 +76,7 @@ def _move_with_retry(src: str, dst: str, *, retries: int = 25, delay_s: float = 
     Windows can temporarily lock files right as the app exits.
     This small retry loop makes the update more robust.
     """
-    last_exc: Exception | None = None
+    last_exc: Optional[Exception] = None
     for _ in range(retries):
         try:
             shutil.move(src, dst)
@@ -89,7 +90,7 @@ def _move_with_retry(src: str, dst: str, *, retries: int = 25, delay_s: float = 
         raise last_exc
 
 
-def _find_app_root(extract_root: str) -> str | None:
+def _find_app_root(extract_root: str) -> Optional[str]:
     if _resolve_main_exe_path(extract_root):
         return extract_root
 

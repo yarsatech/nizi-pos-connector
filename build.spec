@@ -128,7 +128,7 @@ if is_mac:
     app = BUNDLE(
         coll,                # Use collective binaries
         name='NiziPOSConnector.app',
-        icon=os.path.join(base_dir, 'assets', 'icon.ico'),
+        icon=os.path.join(base_dir, 'assets', 'icon.icns' if os.path.exists(os.path.join(base_dir, 'assets', 'icon.icns')) else 'icon.ico'),
         bundle_identifier='com.yarsatech.nizi-pos-connector',
         info_plist={
             'LSUIElement': True,

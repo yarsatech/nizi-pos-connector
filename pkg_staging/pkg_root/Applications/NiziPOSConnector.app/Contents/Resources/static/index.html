@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nizi POS Connector — Dashboard</title>
+    <meta name="description" content="Nizi POS Connector — device control dashboard">
+    <link rel="stylesheet" href="/static/style.css">
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+</head>
+
+<body>
+
+    <div class="app-container">
+
+        <!-- ═══ Header ═══ -->
+        <header class="app-header">
+            <div class="logo">
+                <div class="logo-icon">
+                    <img class="logo-img" src="/assets/icon.ico" alt="Nizi POS logo">
+                </div>
+                <div>
+                    <h1>Nizi POS Connector</h1>
+                    <div class="subtitle">Device control dashboard</div>
+                </div>
+            </div>
+            <div class="status-badge" id="statusBadge">
+                <span class="dot"></span>
+                <span id="statusText">Disconnected</span>
+                <span class="port-label" id="portLabel"></span>
+            </div>
+        </header>
+
+        <!-- ═══ Dashboard Grid ═══ -->
+        <div class="dashboard-grid">
+
+            <!-- ─── Connection Card ─── -->
+            <div class="card" id="connectionCard">
+                <div class="card-title"><span class="icon">🔌</span> Connection</div>
+                <div class="form-group">
+                    <label for="comPort">COM Port (leave blank for auto-detect)</label>
+                    <input type="text" id="comPort" class="form-control" placeholder="e.g. COM3 or leave empty">
+                </div>
+                <div class="connection-actions">
+                    <button class="btn btn-success btn-sm" id="btnConnect" onclick="connectDevice()">⚡ Connect</button>
+                    <button class="btn btn-danger btn-sm" id="btnDisconnect" onclick="disconnectDevice()">✕
+                        Disconnect</button>
+                </div>
+            </div>
+
+            <!-- ─── Quick Commands ─── -->
+            <div class="card">
+                <div class="card-title"><span class="icon">🚀</span> Quick Commands</div>
+                <div class="btn-group">
+                    <button class="btn btn-outline btn-sm" onclick="sendCmd('IDLE')">💤 IDLE</button>
+                    <button class="btn btn-outline btn-sm" onclick="sendCmd('WAKE')">☀️ WAKE</button>
+                    <button class="btn btn-warning btn-sm" onclick="sendCmd('RESET')">🔄 RESET</button>
+                    <button class="btn btn-danger btn-sm"
+                        onclick="if(confirm('Format internal flash?')) sendCmd('FORMAT')">🗑 FORMAT</button>
+                </div>
+            </div>
+
+            <!-- ─── Text Command ─── -->
+            <div class="card">
+                <div class="card-title"><span class="icon">📝</span> Text Display</div>
+                <div class="form-group">
+                    <label for="textTitle">Main Title</label>
+                    <input type="text" id="textTitle" class="form-control" placeholder="Main Title">
+                </div>
+                <div class="form-group">
+                    <label for="textSubtitle">Subtitle</label>
+                    <input type="text" id="textSubtitle" class="form-control" placeholder="Subtitle Text">
+                </div>
+                <div class="form-group">
+                    <label for="textMessage">Message</label>
+                    <textarea id="textMessage" class="form-control" placeholder="Message body"></textarea>
+                </div>
+                <button class="btn btn-primary btn-sm" onclick="sendText()">Send Text</button>
+            </div>
+
+            <!-- ─── QR Command ─── -->
+            <div class="card">
+                <div class="card-title"><span class="icon">📱</span> QR Code Display</div>
+                <div class="form-group">
+                    <label for="qrAmount">Amount</label>
+                    <input type="text" id="qrAmount" class="form-control" placeholder="Rs. 123.45">
+                </div>
+                <div class="form-group">
+                    <label for="qrScanText">Scan Text</label>
+                    <input type="text" id="qrScanText" class="form-control" placeholder="SCAN TO PAY"
+                        value="SCAN TO PAY">
+                </div>
+                <div class="form-group">
+                    <label for="qrPayload">QR Payload</label>
+                    <textarea id="qrPayload" class="form-control" placeholder="QR payload data"></textarea>
+                </div>
+                <button class="btn btn-primary btn-sm" onclick="sendQR()">Send QR</button>
+            </div>
+
+            <!-- ─── Status Screens ─── -->
+            <div class="card full-width">
+                <div class="card-title"><span class="icon">📺</span> Status Screens</div>
+
+                <div class="dashboard-grid" style="gap:12px;">
+                    <!-- WAIT -->
+                    <div style="display:flex;flex-direction:column;gap:8px;">
+                        <div class="form-group" style="margin:0">
+                            <label>Wait Screen</label>
+                            <input type="text" id="waitAmount" class="form-control" placeholder="Rs. 560.50">
+                        </div>
+                        <input type="text" id="waitMsg" class="form-control" placeholder="Please wait...">
+                        <button class="btn btn-warning btn-sm" onclick="sendStatus('WAIT', 'waitAmount', 'waitMsg')">⏳
+                            WAIT</button>
+                    </div>
+                    <!-- PASS -->
+                    <div style="display:flex;flex-direction:column;gap:8px;">
+                        <div class="form-group" style="margin:0">
+                            <label>Success Screen</label>
+                            <input type="text" id="passTitle" class="form-control" placeholder="SUCCESS!">
+                        </div>
+                        <input type="text" id="passMsg" class="form-control" placeholder="Payment successful">
+                        <button class="btn btn-success btn-sm" onclick="sendStatus('PASS', 'passTitle', 'passMsg')">✓
+                            PASS</button>
+                    </div>
+                    <!-- FAIL -->
+                    <div style="display:flex;flex-direction:column;gap:8px;">
+                        <div class="form-group" style="margin:0">
+                            <label>Failure Screen</label>
+                            <input type="text" id="failAmount" class="form-control" placeholder="Rs. 560.50">
+                        </div>
+                        <input type="text" id="failMsg" class="form-control" placeholder="Payment Failed">
+                        <button class="btn btn-danger btn-sm" onclick="sendStatus('FAIL', 'failAmount', 'failMsg')">✕
+                            FAIL</button>
+                    </div>
+                    <!-- WARN -->
+                    <div style="display:flex;flex-direction:column;gap:8px;">
+                        <div class="form-group" style="margin:0">
+                            <label>Warning Screen</label>
+                            <input type="text" id="warnTitle" class="form-control" placeholder="Device Not Ready">
+                        </div>
+                        <input type="text" id="warnMsg" class="form-control" placeholder="Please wait">
+                        <button class="btn btn-warning btn-sm" onclick="sendStatus('WARN', 'warnTitle', 'warnMsg')">⚠
+                            WARN</button>
+                    </div>
+                    <!-- INFO -->
+                    <div style="display:flex;flex-direction:column;gap:8px;">
+                        <div class="form-group" style="margin:0">
+                            <label>Info Screen</label>
+                            <input type="text" id="infoTitle" class="form-control" placeholder="Important">
+                        </div>
+                        <input type="text" id="infoMsg" class="form-control" placeholder="Keep device connected">
+                        <button class="btn btn-info btn-sm" onclick="sendStatus('INFO', 'infoTitle', 'infoMsg')">ℹ
+                            INFO</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ─── Settings ─── -->
+            <div class="card">
+                <div class="card-title"><span class="icon">⚙️</span> Device Settings</div>
+
+                <div class="slider-group">
+                    <div class="slider-header">
+                        <label for="volumeSlider">Volume</label>
+                        <span class="slider-value" id="volumeVal">—</span>
+                    </div>
+                    <input type="range" id="volumeSlider" min="0" max="100" value="0"
+                        oninput="document.getElementById('volumeVal').textContent=this.value">
+                    <button class="btn btn-outline btn-sm" style="margin-top:8px"
+                        onclick="setSetting('volume', document.getElementById('volumeSlider').value)">Apply</button>
+                </div>
+
+                <div class="slider-group">
+                    <div class="slider-header">
+                        <label for="brightnessSlider">Brightness</label>
+                        <span class="slider-value" id="brightnessVal">—</span>
+                    </div>
+                    <input type="range" id="brightnessSlider" min="0" max="100" value="0"
+                        oninput="document.getElementById('brightnessVal').textContent=this.value">
+                    <button class="btn btn-outline btn-sm" style="margin-top:8px"
+                        onclick="setSetting('brightness', document.getElementById('brightnessSlider').value)">Apply</button>
+                </div>
+
+                <div class="slider-group">
+                    <div class="slider-header">
+                        <label for="screentimeSlider">Screen Time (sec)</label>
+                        <span class="slider-value" id="screentimeVal">—</span>
+                    </div>
+                    <input type="range" id="screentimeSlider" min="10" max="600" value="10"
+                        oninput="document.getElementById('screentimeVal').textContent=this.value">
+                    <button class="btn btn-outline btn-sm" style="margin-top:8px"
+                        onclick="setSetting('screentime', document.getElementById('screentimeSlider').value)">Apply</button>
+                </div>
+
+                <div class="settings-hint" id="settingsHint">
+                    Device settings are not auto-read. Move a slider to choose a value, then press Apply.
+                </div>
+            </div>
+
+            <!-- ─── Image Upload ─── -->
+            <div class="card">
+                <div class="card-title"><span class="icon">🖼</span> Image Upload</div>
+                <div class="drop-zone" id="dropZone">
+                    <div class="drop-icon">📤</div>
+                    <p>Drop JPEG image here or click to browse</p>
+                    <div class="drop-hint">Supports .jpg / .jpeg files only</div>
+                    <input type="file" id="imageInput" accept="image/jpeg,.jpg,.jpeg"
+                        onchange="handleImageSelect(event)">
+                </div>
+
+                <div class="form-group" style="margin-top: 15px;">
+                    <label for="screenSize">Target Screen Size</label>
+                    <select id="screenSize" class="form-control">
+                        <option value="240x320">240x320px</option>
+                        <option value="320x480">320x480px</option>
+                    </select>
+                </div>
+
+                <div id="imagePreview" style="text-align:center;margin-top:10px;"></div>
+                <button class="btn btn-primary btn-sm" style="margin-top:12px;width:100%;" id="btnUploadImg"
+                    onclick="uploadImage()" disabled>
+                    Upload to Device
+                </button>
+            </div>
+
+            <!-- ─── Raw Command ─── -->
+            <div class="card">
+                <div class="card-title"><span class="icon">⌨️</span> Raw Command</div>
+                <div class="form-group">
+                    <label for="rawCommand">Command String</label>
+                    <input type="text" id="rawCommand" class="form-control" placeholder="e.g. TEXT**Hello**World**Test">
+                </div>
+                <button class="btn btn-primary btn-sm" onclick="sendRaw()">Send</button>
+            </div>
+
+            <!-- ─── Activity Log ─── -->
+            <div class="card">
+                <div class="card-title"><span class="icon">📋</span> Activity Log</div>
+                <div class="log-area" id="logArea">
+                    <div class="log-entry info"><span class="timestamp">[--:--:--]</span> Dashboard loaded. Connect a
+                        device to start.</div>
+                </div>
+            </div>
+
+        </div><!-- /dashboard-grid -->
+    </div><!-- /app-container -->
+
+    <!-- Setup Modal -->
+    <div class="modal-overlay" id="setupModal">
+        <div class="setup-card">
+            <div class="setup-header">
+                <div class="logo-icon" style="margin: 0 auto 16px;">🔑</div>
+                <h2>Setup API Access</h2>
+                <p>Enter the API key shared with you via email or WhatsApp.</p>
+            </div>
+
+            <div class="form-group">
+                <label for="apiKeyInput">Your API Token</label>
+                <input type="password" id="apiKeyInput" class="form-control" placeholder="Paste token here...">
+            </div>
+
+            <div class="setup-footer">
+                <button class="btn btn-primary" onclick="saveApiKey()">Authorize Access</button>
+                <div class="setup-actions">
+                    <button class="btn btn-outline" type="button" onclick="openContactUs()">Contact Us</button>
+                    <button class="btn btn-success" type="button" onclick="openWhatsAppSupport()">Contact on
+                        WhatsApp</button>
+                </div>
+                <p style="font-size:0.7rem; color:var(--text-muted); text-align:center;">
+                    Need help with the key? Reach out to Yarsa Tech. Contact us on WhatsApp or email.
+                </p>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- Toast container -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <script src="/static/app.js"></script>
+</body>
+
+</html>

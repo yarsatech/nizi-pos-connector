@@ -1,4 +1,5 @@
 import hashlib
+from typing import Optional
 import os
 import subprocess
 import sys
@@ -41,7 +42,7 @@ class UpdateManager:
         current_version: str,
         config_dir: Path,
         github_api_url_template: str = "https://api.github.com/repos/{repo}/releases/latest",
-        manifest_asset_name: str | None = None,
+        manifest_asset_name: Optional[str] = None,
         timeout_s: int = 20,
     ):
         self.github_repo = (github_repo or "").strip()
@@ -56,7 +57,7 @@ class UpdateManager:
         self.log_file = self.config_dir / "ota.log"
 
     @staticmethod
-    def _default_manifest_asset_name() -> str | None:
+    def _default_manifest_asset_name() -> Optional[str]:
         if sys.platform.startswith("win"):
             return "manifest-win.json"
         if sys.platform.startswith("linux"):
@@ -75,7 +76,7 @@ class UpdateManager:
             candidates.append(f"{name}.exe")
         return candidates
 
-    def _resolve_binary_path(self, installed_dir: Path, configured_name: str) -> Path | None:
+    def _resolve_binary_path(self, installed_dir: Path, configured_name: str) -> Optional[Path]:
         for candidate in self._candidate_binary_names(configured_name):
             candidate_path = installed_dir / candidate
             if candidate_path.exists():
@@ -97,7 +98,7 @@ class UpdateManager:
         *,
         cancel_check=None,
         progress_dialog=None,
-        label_prefix: str | None = None,
+        label_prefix: Optional[str] = None,
     ):
         headers = {"User-Agent": OTA_HTTP_USER_AGENT}
         timeout = (10, max(60, int(self.timeout_s) * 6))
@@ -141,7 +142,7 @@ class UpdateManager:
                 h.update(block)
         return h.hexdigest()
 
-    def _get_update_info(self) -> UpdateInfo | None:
+    def _get_update_info(self) -> Optional[UpdateInfo]:
         if not self.manifest_asset_name:
             self._write_log("[startup_check] no manifest asset configured for this platform")
             return None

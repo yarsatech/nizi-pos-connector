@@ -7,7 +7,7 @@ import os
 import re
 import sys
 from dataclasses import dataclass
-from typing import Callable
+from typing import Callable, Optional
 
 import requests
 
@@ -38,7 +38,7 @@ def is_version_newer(latest: str, current: str) -> bool:
     return _parse_version_tuple(latest) > _parse_version_tuple(current)
 
 
-def normalize_github_repo(repo: str) -> str | None:
+def normalize_github_repo(repo: str) -> Optional[str]:
     repo = (repo or "").strip()
     if not repo:
         return None
@@ -59,8 +59,8 @@ def normalize_github_repo(repo: str) -> str | None:
 
 def load_repo_from_embedded_source(
     *,
-    write_log: Callable[[str], None] | None = None,
-) -> str | None:
+    write_log: Optional[Callable[[str], None]] = None,
+) -> Optional[str]:
     """Read ``github_repo`` from ``config.json`` next to the frozen exe (or under ``_internal``)."""
     try:
         installed_dir = os.path.dirname(sys.executable)
@@ -88,8 +88,8 @@ def fetch_latest_release_json(
     *,
     api_url_template: str = "https://api.github.com/repos/{repo}/releases/latest",
     timeout_s: int = 20,
-    write_log: Callable[[str], None] | None = None,
-) -> dict | None:
+    write_log: Optional[Callable[[str], None]] = None,
+) -> Optional[dict]:
     api_url = api_url_template.format(repo=repo)
     headers = {"User-Agent": OTA_HTTP_USER_AGENT}
     try:
@@ -106,8 +106,8 @@ def fetch_latest_release_json(
 
 
 def download_text(
-    url: str, *, timeout_s: int = 20, write_log: Callable[[str], None] | None = None
-) -> str | None:
+    url: str, *, timeout_s: int = 20, write_log: Optional[Callable[[str], None]] = None
+) -> Optional[str]:
     headers = {"User-Agent": OTA_HTTP_USER_AGENT}
     try:
         r = requests.get(url, headers=headers, timeout=timeout_s)
@@ -126,8 +126,8 @@ def parse_update_info(
     current_version: str,
     manifest_asset_name: str,
     timeout_s: int = 20,
-    write_log: Callable[[str], None] | None = None,
-) -> UpdateInfo | None:
+    write_log: Optional[Callable[[str], None]] = None,
+) -> Optional[UpdateInfo]:
     assets = release.get("assets") or []
     manifest_asset = next(
         (a for a in assets if (a.get("name") or "") == manifest_asset_name),

@@ -93,9 +93,18 @@ def main():
 
     # Now that we have the device manager, wire quit handler properly.
     def on_quit():
-        logger.info("Shutting down …")
-        device.disconnect()
-        os._exit(0)  # Ensure all threads are terminated immediately
+        from PyQt6.QtWidgets import QMessageBox
+        reply = QMessageBox.question(
+            None,
+            "Confirm Exit",
+            f"Are you sure you want to quit {APP_NAME}?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No
+        )
+        if reply == QMessageBox.StandardButton.Yes:
+            logger.info("Shutting down …")
+            device.disconnect()
+            os._exit(0)  # Ensure all threads are terminated immediately
 
     # Create the floating PyQt UI
     from ui_app import TrayFlyout

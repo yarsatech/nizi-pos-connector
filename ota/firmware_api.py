@@ -12,6 +12,7 @@ import logging
 import urllib.request
 import urllib.parse
 import json
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +31,7 @@ _REQUEST_TIMEOUT = 10
 _MODEL_PATTERN = re.compile(r"B3\d", re.IGNORECASE)
 
 
-def extract_model_code(device_id: str) -> str | None:
+def extract_model_code(device_id: str) -> Optional[str]:
     """
     Extract the model code (e.g. 'B31') from a raw device_id string.
 
@@ -168,7 +169,7 @@ def get_languages() -> list[str]:
 def check_update_available(
     device_id: str,
     installed_version: str,
-    port: str | None = None,
+    port: Optional[str] = None,
 ) -> dict:
     """
     High-level check: given the connected device_id and its installed
@@ -235,9 +236,9 @@ def check_update_available(
 
 def build_update_url(
     model: str,
-    firmware_version: str | None = None,
-    port: str | None = None,
-    language: str | None = None,
+    firmware_version: Optional[str] = None,
+    port: Optional[str] = None,
+    language: Optional[str] = None,
 ) -> str:
     """
     Build the firmware-update web page URL with query parameters.

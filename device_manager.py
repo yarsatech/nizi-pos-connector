@@ -3,6 +3,7 @@ Serial (UART) device manager for the Nizi POS Connector–attached display.
 """
 
 import struct
+from typing import Optional
 import threading
 import time
 import logging
@@ -38,12 +39,12 @@ class DeviceManager:
     """Thread-safe UART communication with the connected display."""
 
     def __init__(self):
-        self._serial: serial.Serial | None = None
+        self._serial: Optional[serial.Serial] = None
         self._lock = threading.Lock()
-        self._port: str | None = None
-        self._device_id: str | None = None
-        self._firmware_id: str | None = None
-        self._firmware_update_info: dict | None = None  # cached update check result
+        self._port: Optional[str] = None
+        self._device_id: Optional[str] = None
+        self._firmware_id: Optional[str] = None
+        self._firmware_update_info: Optional[dict] = None  # cached update check result
         self._connected = False
         self._auto_connect = True  # Flag to enable/disable auto-connection polling
         self._auto_connect_suspend_until = 0.0
@@ -56,19 +57,19 @@ class DeviceManager:
         return self._connected
 
     @property
-    def port(self) -> str | None:
+    def port(self) -> Optional[str]:
         return self._port
 
     @property
-    def device_id(self) -> str | None:
+    def device_id(self) -> Optional[str]:
         return self._device_id
 
     @property
-    def firmware_id(self) -> str | None:
+    def firmware_id(self) -> Optional[str]:
         return self._firmware_id
 
     @property
-    def firmware_update_info(self) -> dict | None:
+    def firmware_update_info(self) -> Optional[dict]:
         """Cached result of the last firmware update check, or None if not yet run."""
         return self._firmware_update_info
 
@@ -115,7 +116,7 @@ class DeviceManager:
 
     # ── Connection ──────────────────────────────────────────────────────
 
-    def auto_detect(self) -> str | None:
+    def auto_detect(self) -> Optional[str]:
         """
         Scan COM ports, prioritizing CH340 chipsets.
         Sends DEVICE_ID and returns the port that responds with NIZI_POS_B31.
@@ -176,7 +177,7 @@ class DeviceManager:
             })
         return ports
 
-    def _probe_port(self, device: str) -> str | None:
+    def _probe_port(self, device: str) -> Optional[str]:
         """Internal helper to probe a specific port for the device ID."""
         try:
             logger.info(f"Probing {device} ...")
@@ -205,7 +206,7 @@ class DeviceManager:
             logger.debug(f"  skip {device}: {exc}")
         return None
 
-    def _extract_device_id(self, response: str) -> str | None:
+    def _extract_device_id(self, response: str) -> Optional[str]:
         if not response:
             return None
         m = DEVICE_ID_PATTERN.search(response)
@@ -213,7 +214,7 @@ class DeviceManager:
             return None
         return m.group(0).upper().replace("_", "")
 
-    def _query_device_id(self) -> str | None:
+    def _query_device_id(self) -> Optional[str]:
         """
         Query current connected serial for DEVICE_ID and return normalized value
         like NIZIPOSB31, or None on failure.
@@ -229,7 +230,7 @@ class DeviceManager:
         except Exception:
             return None
 
-    def _query_firmware_id(self) -> str | None:
+    def _query_firmware_id(self) -> Optional[str]:
         """
         Query the connected device for its firmware version string.
         Returns the clean version as 'major.minor.patch' (e.g. '2.0.0'), or None.
@@ -271,7 +272,7 @@ class DeviceManager:
             except Exception as exc:
                 return {"success": False, "firmware_id": None, "error": str(exc)}
 
-    def connect(self, port: str | None = None) -> dict:
+    def connect(self, port: Optional[str] = None) -> dict:
         """
         Connect to the device.  If *port* is None, auto-detect is used.
         Returns {"success": bool, "port": str | None, "error": str | None}.
@@ -479,8 +480,10 @@ class DeviceManager:
             if not self._connected or not self._serial or not self._serial.is_open:
                 return {"success": False, "error": "Device not connected."}
 
+            ser = self._serial
+            orig_timeout = ser.timeout
             try:
-                ser = self._serial
+                ser.timeout = 15.0
                 ser.reset_input_buffer()
 
                 # Step 1 – start command
@@ -538,18 +541,123 @@ class DeviceManager:
                 self._connected = False
                 self._notify_status()
                 return {"success": False, "error": str(exc)}
+            finally:
+                ser.timeout = orig_timeout
 
     def upload_image(self, jpeg_data: bytes) -> dict:
         """Upload a JPEG image for real-time display (START_RTIMAGE)."""
         return self._upload_image_protocol(IMAGE_START_COMMAND, jpeg_data)
 
-    def upload_idle_image(self, jpeg_data: bytes) -> dict:
-        """Upload primary idle image (IMG1.jpg) using IMAGE_UPLOAD:[size]."""
-        cmd = f"IMAGE_UPLOAD:{len(jpeg_data)}"
-        return self._upload_image_protocol(cmd, jpeg_data)
+    def upload_wallpaper(self, jpeg_data: bytes, slot2: bool = False, progress_callback = None) -> dict:
+        """
+        Upload persistent wallpaper image (IMG1.jpg or IMG2.jpg) using the ESP32 chunked CRC32 protocol.
+        """
+        import zlib
+        with self._lock:
+            if not self._connected or not self._serial or not self._serial.is_open:
+                return {"success": False, "error": "Device not connected."}
 
-    def upload_idle_image_2(self, jpeg_data: bytes) -> dict:
-        """Upload secondary idle image (IMG2.jpg) using IMAGE_UPLOAD_2:[size]."""
-        cmd = f"IMAGE_UPLOAD_2:{len(jpeg_data)}"
-        return self._upload_image_protocol(cmd, jpeg_data)
+            ser = self._serial
+            orig_timeout = ser.timeout
+            try:
+                ser.timeout = 5.0  # 5 seconds is plenty for individual chunk validation and read
+                ser.reset_input_buffer()
+
+                # Step 1: Send start command
+                cmd = f"IMAGE_UPLOAD_2:{len(jpeg_data)}" if slot2 else f"IMAGE_UPLOAD:{len(jpeg_data)}"
+                ser.write((cmd + "\n").encode("utf-8"))
+                ser.flush()
+                logger.info(f"Wallpaper upload: sent {cmd}")
+
+                # Step 2: Wait for READY response
+                start_time = time.time()
+                ready_received = False
+                while time.time() - start_time < 3.0:
+                    if ser.in_waiting:
+                        line = ser.readline().decode("utf-8", errors="ignore").strip()
+                        if "READY" in line:
+                            ready_received = True
+                            break
+                    time.sleep(0.05)
+
+                if not ready_received:
+                    return {"success": False, "error": "Device did not respond with READY."}
+                logger.info("Wallpaper upload: device is READY")
+
+                # Step 3: Send in chunks of 512 bytes
+                chunk_size = 512
+                offset = 0
+                while offset < len(jpeg_data):
+                    chunk = jpeg_data[offset : offset + chunk_size]
+                    length = len(chunk)
+                    
+                    # Compute CRC32
+                    crc = zlib.crc32(chunk) & 0xFFFFFFFF
+                    crc_hex = f"{crc:08X}"
+
+                    # Send CHUNK command
+                    chunk_cmd = f"CHUNK:{offset},{length},{crc_hex}\n"
+                    ser.write(chunk_cmd.encode("utf-8"))
+                    ser.flush()
+
+                    # Wait for CHUNK_START
+                    start_time = time.time()
+                    start_received = False
+                    while time.time() - start_time < 3.0:
+                        if ser.in_waiting:
+                            line = ser.readline().decode("utf-8", errors="ignore").strip()
+                            if "CHUNK_START" in line:
+                                start_received = True
+                                break
+                        time.sleep(0.01)
+
+                    if not start_received:
+                        return {"success": False, "error": f"Device failed to prompt CHUNK_START at offset {offset}"}
+
+                    # Send raw binary chunk data
+                    ser.write(chunk)
+                    ser.flush()
+
+                    # Wait for CHUNK_OK
+                    start_time = time.time()
+                    ok_received = False
+                    while time.time() - start_time < 3.0:
+                        if ser.in_waiting:
+                            line = ser.readline().decode("utf-8", errors="ignore").strip()
+                            if "CHUNK_OK" in line:
+                                ok_received = True
+                                break
+                            elif "CHUNK_FAIL" in line:
+                                break
+                        time.sleep(0.01)
+
+                    if not ok_received:
+                        return {"success": False, "error": f"Chunk verify failed at offset {offset}"}
+
+                    offset += length
+                    if progress_callback:
+                        progress_callback(offset, len(jpeg_data))
+
+                # Step 4: Wait for UPLOAD_DONE
+                start_time = time.time()
+                done_received = False
+                while time.time() - start_time < 5.0:
+                    if ser.in_waiting:
+                        line = ser.readline().decode("utf-8", errors="ignore").strip()
+                        if "UPLOAD_DONE" in line:
+                            done_received = True
+                            break
+                    time.sleep(0.05)
+
+                if not done_received:
+                    logger.warning("All chunks sent OK but did not see UPLOAD_DONE confirmation.")
+
+                logger.info("Wallpaper upload: SUCCESS")
+                return {"success": True, "error": None}
+
+            except Exception as exc:
+                logger.error(f"Wallpaper upload error: {exc}")
+                return {"success": False, "error": str(exc)}
+            finally:
+                ser.timeout = orig_timeout
 

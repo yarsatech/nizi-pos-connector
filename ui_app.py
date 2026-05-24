@@ -15,10 +15,10 @@ from PyQt6.QtWidgets import (
     QComboBox, QLineEdit, QTextEdit, QFileDialog,
     QFrame, QApplication, QStackedWidget, QSizePolicy,
     QRadioButton, QButtonGroup, QDialog, QMessageBox,
-    QSlider
+    QSlider, QListView
 )
 from PyQt6.QtCore import Qt, pyqtSignal, pyqtSlot, QUrl
-from PyQt6.QtGui import QFont, QGuiApplication, QIcon, QDesktopServices
+from PyQt6.QtGui import QFont, QGuiApplication, QIcon, QDesktopServices, QPixmap
 
 from config import APP_NAME
 from theme_support import flyout_dark_stylesheet, prefers_light_theme
@@ -95,6 +95,20 @@ QFrame#separator {
     border: none;
 }
 
+QLabel#imagePreview {
+    border: 2px dashed #cbd5e1;
+    border-radius: 8px;
+    background-color: #f8fafc;
+    color: #94a3b8;
+    font-weight: 500;
+}
+
+QTextEdit#logDisplay {
+    background-color: #f8fafc;
+    border: 1px solid #e2e8f0;
+    font-family: monospace;
+}
+
 /* ── Dropdown (QComboBox) ─────────────────────────────── */
 
 QComboBox {
@@ -126,20 +140,28 @@ QComboBox::down-arrow {
 }
 QComboBox QAbstractItemView {
     font-size: 10pt;
-    border: 1px solid #d1d5db;
-    border-radius: 8px;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
     background-color: #ffffff;
-    selection-background-color: #eef2ff;
-    selection-color: #b91c1c;
+    selection-background-color: #f3f4f6;
+    selection-color: #ef4444;
     outline: 0;
-    padding: 4px;
+    padding: 6px;
 }
 QComboBox QAbstractItemView::item {
-    padding: 6px 12px;
-    min-height: 22px;
+    padding: 10px 16px;
+    margin: 2px 0px;
+    border-radius: 8px;
+    color: #374151;
 }
 QComboBox QAbstractItemView::item:hover {
     background-color: #f3f4f6;
+    color: #ef4444;
+}
+QComboBox QAbstractItemView::item:selected {
+    background-color: #fef2f2;
+    color: #ef4444;
+    font-weight: 600;
 }
 
 /* ── Inputs ───────────────────────────────────────────── */
@@ -360,6 +382,7 @@ QDialog {
 class TrayFlyout(QWidget):
     status_updated = pyqtSignal(bool, str)
     upload_status_updated = pyqtSignal(str, str, bool)
+    wallpaper_upload_status_updated = pyqtSignal(str, str, bool)
     toggle_visibility = pyqtSignal()
     languages_loaded = pyqtSignal(list)
 
@@ -404,6 +427,7 @@ class TrayFlyout(QWidget):
 
         self.status_updated.connect(self._on_status_updated)
         self.upload_status_updated.connect(self._on_upload_status)
+        self.wallpaper_upload_status_updated.connect(self._on_wallpaper_upload_status)
         self.toggle_visibility.connect(self._toggle_internal)
         self.languages_loaded.connect(self._on_languages_loaded)
 
@@ -537,6 +561,7 @@ class TrayFlyout(QWidget):
         port_layout.addLayout(port_header)
 
         self.port_dropdown = QComboBox()
+        self.port_dropdown.setView(QListView())
         self.port_dropdown.setPlaceholderText("Select a port...")
         port_layout.addWidget(self.port_dropdown)
         
@@ -564,35 +589,35 @@ class TrayFlyout(QWidget):
         section_row.addStretch()
 
         self.page_selector = QComboBox()
+        self.page_selector.setView(QListView())
         self.page_selector.addItems([
+            "Quick Actions",
+            "Device Config",
+            "Upload Images",
             "Status Screen",
             "QR Display",
             "Text Display",
-            "Image Upload",
             "Idle Mode",
-            "Idle Images",
-            "Device Config",
-            "Quick Actions",
         ])
         self.page_selector.setMinimumWidth(160)
         self.page_selector.currentIndexChanged.connect(self._switch_page)
         section_row.addWidget(self.page_selector)
         commands_layout.addLayout(section_row)
 
-        # Stacked pages
+        # Stacked pages — order must match addItems above
         self.stack = QStackedWidget()
         self.stack.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Maximum)
         commands_layout.addWidget(self.stack)
 
-        self._build_page_status()
-        self._build_page_qr()
-        self._build_page_text()
-        self._build_page_image()
-        self._build_page_idle_mode()
-        self._build_page_idle_images()
-        self._build_page_device_config()
-        self._build_page_quick()
+        self._build_page_quick()          # index 0 — Quick Actions
+        self._build_page_device_config()  # index 1 — Device Config
+        self._build_page_upload_images()  # index 2 — Upload Images
+        self._build_page_status()         # index 3 — Status Screen
+        self._build_page_qr()             # index 4 — QR Display
+        self._build_page_text()           # index 5 — Text Display
+        self._build_page_idle_mode()      # index 6 — Idle Mode
 
+        self.page_selector.setCurrentIndex(0)  # default: Quick Actions
         root.addWidget(self.commands_container)
 
         # Footer
@@ -624,6 +649,7 @@ class TrayFlyout(QWidget):
 
         layout.addWidget(self._make_field_label("Type"))
         self.status_type = QComboBox()
+        self.status_type.setView(QListView())
         self.status_type.addItems([
             "INFO — Information",
             "PASS — Payment Successful",
@@ -710,35 +736,115 @@ class TrayFlyout(QWidget):
 
         self.stack.addWidget(page)
 
-    def _build_page_image(self):
+    def _build_page_upload_images(self):
         page = QWidget()
         layout = QVBoxLayout(page)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(4)
+        layout.setSpacing(12)
 
-        self.img_file_path = None
+        # ── SECTION 1: Wallpaper Image (Saves on Device) ──────────────────
+        wall_card = QFrame()
+        wall_card.setObjectName("statusCard")
+        wall_card_layout = QVBoxLayout(wall_card)
+        wall_card_layout.setContentsMargins(12, 12, 12, 12)
+        wall_card_layout.setSpacing(6)
 
-        self.btn_select_img = QPushButton("Browse Image…")
-        self.btn_select_img.setObjectName("secondaryBtn")
-        self.btn_select_img.clicked.connect(self._select_image)
-        layout.addWidget(self.btn_select_img)
+        wall_title = QLabel("Wallpaper Image (Saves on Device)")
+        wall_title.setStyleSheet("font-weight: 700; color: #ef4444; font-size: 10pt;")
+        wall_card_layout.addWidget(wall_title)
 
-        self.img_label = QLabel("No image selected")
-        self.img_label.setObjectName("instructionLabel")
-        self.img_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(self.img_label)
+        self.wallpaper_file_path = None
 
-        layout.addWidget(self._make_field_label("Screen Size"))
-        self.img_size_dropdown = QComboBox()
-        self.img_size_dropdown.addItems(["B30/B31 — 2.8 inch (240×320)", "B32/B33 — 3.5 inch (320×480)"])
-        layout.addWidget(self.img_size_dropdown)
+        wall_card_layout.addWidget(self._make_field_label("Wallpaper Slot"))
+        self.wallpaper_slot = QComboBox()
+        self.wallpaper_slot.setView(QListView())
+        self.wallpaper_slot.addItems(["IMG1 — Primary", "IMG2 — Secondary (for Cycle mode)"])
+        wall_card_layout.addWidget(self.wallpaper_slot)
 
-        layout.addSpacing(12)
-        self.btn_upload_img = QPushButton("Upload to Device")
-        self.btn_upload_img.setObjectName("primaryBtn")
-        self.btn_upload_img.clicked.connect(self._upload_image)
-        self.btn_upload_img.setEnabled(False)
-        layout.addWidget(self.btn_upload_img)
+        self.btn_select_wallpaper = QPushButton("Browse Wallpaper…")
+        self.btn_select_wallpaper.setObjectName("secondaryBtn")
+        self.btn_select_wallpaper.clicked.connect(self._select_wallpaper)
+        wall_card_layout.addWidget(self.btn_select_wallpaper)
+
+        # Wallpaper Preview
+        self.wallpaper_preview = QLabel("No Wallpaper Selected")
+        self.wallpaper_preview.setObjectName("imagePreview")
+        self.wallpaper_preview.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.wallpaper_preview.setFixedSize(160, 120)
+        
+        preview_container_wall = QWidget()
+        preview_layout_wall = QHBoxLayout(preview_container_wall)
+        preview_layout_wall.setContentsMargins(0, 2, 0, 2)
+        preview_layout_wall.addWidget(self.wallpaper_preview, 0, Qt.AlignmentFlag.AlignCenter)
+        wall_card_layout.addWidget(preview_container_wall)
+
+        self.wallpaper_label = QLabel("No wallpaper selected")
+        self.wallpaper_label.setObjectName("instructionLabel")
+        self.wallpaper_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        wall_card_layout.addWidget(self.wallpaper_label)
+
+        wall_card_layout.addWidget(self._make_field_label("Screen Size"))
+        self.wallpaper_size = QComboBox()
+        self.wallpaper_size.setView(QListView())
+        self.wallpaper_size.addItems(["B30/B31 — 2.8 inch (240×320)", "B32/B33 — 3.5 inch (320×480)"])
+        wall_card_layout.addWidget(self.wallpaper_size)
+
+        self.btn_upload_wallpaper = QPushButton("Save Wallpaper to Device")
+        self.btn_upload_wallpaper.setObjectName("primaryBtn")
+        self.btn_upload_wallpaper.clicked.connect(self._upload_wallpaper)
+        self.btn_upload_wallpaper.setEnabled(False)
+        wall_card_layout.addWidget(self.btn_upload_wallpaper)
+
+        layout.addWidget(wall_card)
+
+        # ── SECTION 2: Temporary Image (Real-time Preview) ────────────────
+        temp_card = QFrame()
+        temp_card.setObjectName("statusCard")
+        temp_card_layout = QVBoxLayout(temp_card)
+        temp_card_layout.setContentsMargins(12, 12, 12, 12)
+        temp_card_layout.setSpacing(6)
+
+        temp_title = QLabel("Temporary Image (Real-time Preview)")
+        temp_title.setStyleSheet("font-weight: 700; color: #ef4444; font-size: 10pt;")
+        temp_card_layout.addWidget(temp_title)
+
+        self.preview_file_path = None
+
+        self.btn_select_preview = QPushButton("Browse Preview Image…")
+        self.btn_select_preview.setObjectName("secondaryBtn")
+        self.btn_select_preview.clicked.connect(self._select_preview_image)
+        temp_card_layout.addWidget(self.btn_select_preview)
+
+        # Preview Image Preview
+        self.preview_image_preview = QLabel("No Preview Selected")
+        self.preview_image_preview.setObjectName("imagePreview")
+        self.preview_image_preview.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.preview_image_preview.setFixedSize(160, 120)
+        
+        preview_container_temp = QWidget()
+        preview_layout_temp = QHBoxLayout(preview_container_temp)
+        preview_layout_temp.setContentsMargins(0, 2, 0, 2)
+        preview_layout_temp.addWidget(self.preview_image_preview, 0, Qt.AlignmentFlag.AlignCenter)
+        temp_card_layout.addWidget(preview_container_temp)
+
+        self.preview_label = QLabel("No preview image selected")
+        self.preview_label.setObjectName("instructionLabel")
+        self.preview_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        temp_card_layout.addWidget(self.preview_label)
+
+        temp_card_layout.addWidget(self._make_field_label("Screen Size"))
+        self.preview_size = QComboBox()
+        self.preview_size.setView(QListView())
+        self.preview_size.addItems(["B30/B31 — 2.8 inch (240×320)", "B32/B33 — 3.5 inch (320×480)"])
+        temp_card_layout.addWidget(self.preview_size)
+
+        self.btn_upload_preview = QPushButton("Show Preview on Device")
+        self.btn_upload_preview.setObjectName("primaryBtn")
+        self.btn_upload_preview.clicked.connect(self._upload_preview_image)
+        self.btn_upload_preview.setEnabled(False)
+        temp_card_layout.addWidget(self.btn_upload_preview)
+
+        layout.addWidget(temp_card)
 
         self.stack.addWidget(page)
 
@@ -750,6 +856,7 @@ class TrayFlyout(QWidget):
 
         layout.addWidget(self._make_field_label("Idle Mode"))
         self.idle_mode_dropdown = QComboBox()
+        self.idle_mode_dropdown.setView(QListView())
         self.idle_mode_dropdown.addItems([
             "SLEEP_WAKE — Sleep/Wake Cycle (Default)",
             "SINGLE — Static Image",
@@ -767,6 +874,7 @@ class TrayFlyout(QWidget):
 
         self.idle_img1_label = self._make_field_label("Image Name")
         self.idle_img1 = QComboBox()
+        self.idle_img1.setView(QListView())
         self.idle_img1.addItems(["IMG1", "IMG2"])
         self.idle_fields_layout.addWidget(self.idle_img1_label)
         self.idle_fields_layout.addWidget(self.idle_img1)
@@ -783,6 +891,7 @@ class TrayFlyout(QWidget):
 
         self.idle_img2_label = self._make_field_label("Image 2 Name")
         self.idle_img2 = QComboBox()
+        self.idle_img2.setView(QListView())
         self.idle_img2.addItems(["IMG1", "IMG2"])
         self.idle_img2.setCurrentIndex(1)  # Default to IMG2
         self.idle_fields_layout.addWidget(self.idle_img2_label)
@@ -817,42 +926,7 @@ class TrayFlyout(QWidget):
 
         self.stack.addWidget(page)
 
-    def _build_page_idle_images(self):
-        page = QWidget()
-        layout = QVBoxLayout(page)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(4)
 
-        self.idle_img_file_path = None
-
-        layout.addWidget(self._make_field_label("Image Slot"))
-        self.idle_img_slot = QComboBox()
-        self.idle_img_slot.addItems(["IMG1 — Primary", "IMG2 — Secondary (for Cycle mode)"])
-        layout.addWidget(self.idle_img_slot)
-
-        self.btn_select_idle_img = QPushButton("Browse Image…")
-        self.btn_select_idle_img.setObjectName("secondaryBtn")
-        self.btn_select_idle_img.clicked.connect(self._select_idle_image)
-        layout.addWidget(self.btn_select_idle_img)
-
-        self.idle_img_label = QLabel("No image selected")
-        self.idle_img_label.setObjectName("instructionLabel")
-        self.idle_img_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(self.idle_img_label)
-
-        layout.addWidget(self._make_field_label("Screen Size"))
-        self.idle_img_size_dropdown = QComboBox()
-        self.idle_img_size_dropdown.addItems(["B30/B31 — 2.8 inch (240×320)", "B32/B33 — 3.5 inch (320×480)"])
-        layout.addWidget(self.idle_img_size_dropdown)
-
-        layout.addSpacing(12)
-        self.btn_upload_idle_img = QPushButton("Upload to Device")
-        self.btn_upload_idle_img.setObjectName("primaryBtn")
-        self.btn_upload_idle_img.clicked.connect(self._upload_idle_image)
-        self.btn_upload_idle_img.setEnabled(False)
-        layout.addWidget(self.btn_upload_idle_img)
-
-        self.stack.addWidget(page)
 
     def _build_page_device_config(self):
         page = QWidget()
@@ -965,6 +1039,7 @@ class TrayFlyout(QWidget):
         # ── Language Firmware ───────────────────────────────────────────
         layout.addWidget(self._make_field_label("Language Firmware Update"))
         self.language_dropdown = QComboBox()
+        self.language_dropdown.setView(QListView())
         self.language_dropdown.addItem("Loading languages...")
         self.language_dropdown.setEnabled(False)
         layout.addWidget(self.language_dropdown)
@@ -1010,6 +1085,33 @@ class TrayFlyout(QWidget):
         buzzer_inner.addWidget(self.buzzer_feedback)
 
         layout.addWidget(self.buzzer_container)
+
+        # Separator for Logs
+        sep5 = QFrame()
+        sep5.setObjectName("separator")
+        sep5.setFrameShape(QFrame.Shape.HLine)
+        layout.addWidget(sep5)
+
+        # Application Logs Section
+        layout.addWidget(self._make_field_label("Application Logs"))
+
+        log_btn_row = QHBoxLayout()
+        self.btn_open_log = QPushButton("📂 Open Log File")
+        self.btn_open_log.setObjectName("secondaryBtn")
+        self.btn_open_log.clicked.connect(self._open_log_file)
+        log_btn_row.addWidget(self.btn_open_log)
+
+        self.btn_refresh_log = QPushButton("🔄 Refresh Logs")
+        self.btn_refresh_log.setObjectName("secondaryBtn")
+        self.btn_refresh_log.clicked.connect(self._refresh_logs)
+        log_btn_row.addWidget(self.btn_refresh_log)
+        layout.addLayout(log_btn_row)
+
+        self.log_display = QTextEdit()
+        self.log_display.setObjectName("logDisplay")
+        self.log_display.setReadOnly(True)
+        self.log_display.setMinimumHeight(120)
+        layout.addWidget(self.log_display)
 
         self.stack.addWidget(page)
 
@@ -1122,27 +1224,37 @@ class TrayFlyout(QWidget):
             f"**{self.text_msg.toPlainText().strip()}"
         )
 
-    def _select_image(self):
-        path, _ = QFileDialog.getOpenFileName(self, "Select Image", "", "JPEG (*.jpg *.jpeg)")
+    def _select_preview_image(self):
+        path, _ = QFileDialog.getOpenFileName(self, "Select Preview Image", "", "JPEG (*.jpg *.jpeg)")
         if path:
-            self.img_file_path = path
-            self.img_label.setText(os.path.basename(path))
-            self.img_label.setStyleSheet("color: #374151;")
+            self.preview_file_path = path
+            self.preview_label.setText(os.path.basename(path))
+            self.preview_label.setStyleSheet("color: #374151;")
+            
+            pixmap = QPixmap(path)
+            if not pixmap.isNull():
+                self.preview_image_preview.setPixmap(pixmap.scaled(
+                    self.preview_image_preview.width() - 4,
+                    self.preview_image_preview.height() - 4,
+                    Qt.AspectRatioMode.KeepAspectRatio,
+                    Qt.TransformationMode.SmoothTransformation
+                ))
+            
             if self.device.connected:
-                self.btn_upload_img.setEnabled(True)
+                self.btn_upload_preview.setEnabled(True)
 
-    def _upload_image(self):
-        if not self.img_file_path:
+    def _upload_preview_image(self):
+        if not self.preview_file_path:
             return
-        self.btn_upload_img.setEnabled(False)
-        self.btn_upload_img.setText("Uploading…")
+        self.btn_upload_preview.setEnabled(False)
+        self.btn_upload_preview.setText("Uploading…")
 
-        size_text = self.img_size_dropdown.currentText()
+        size_text = self.preview_size.currentText()
         width, height = (320, 480) if "3.5" in size_text else (240, 320)
 
         def _work():
             try:
-                with open(self.img_file_path, "rb") as f:
+                with open(self.preview_file_path, "rb") as f:
                     raw = f.read()
                 img = Image.open(io.BytesIO(raw))
                 if img.mode != "RGB":
@@ -1160,12 +1272,70 @@ class TrayFlyout(QWidget):
 
                 res = self.device.upload_image(jpeg_data)
                 if res.get("success"):
-                    self.upload_status_updated.emit("✓ Uploaded", "#16a34a", True)
+                    self.upload_status_updated.emit("✓ Preview loaded on device", "#16a34a", True)
                 else:
                     self.upload_status_updated.emit(f"Error: {res.get('error', '?')}", "#dc2626", True)
             except Exception as e:
-                logger.error(f"Image error: {e}")
+                logger.error(f"Preview image error: {e}")
                 self.upload_status_updated.emit("Processing error", "#dc2626", True)
+
+        threading.Thread(target=_work, daemon=True).start()
+
+    def _select_wallpaper(self):
+        path, _ = QFileDialog.getOpenFileName(self, "Select Wallpaper Image", "", "JPEG (*.jpg *.jpeg)")
+        if path:
+            self.wallpaper_file_path = path
+            self.wallpaper_label.setText(os.path.basename(path))
+            self.wallpaper_label.setStyleSheet("color: #374151;")
+            
+            pixmap = QPixmap(path)
+            if not pixmap.isNull():
+                self.wallpaper_preview.setPixmap(pixmap.scaled(
+                    self.wallpaper_preview.width() - 4,
+                    self.wallpaper_preview.height() - 4,
+                    Qt.AspectRatioMode.KeepAspectRatio,
+                    Qt.TransformationMode.SmoothTransformation
+                ))
+            
+            if self.device.connected:
+                self.btn_upload_wallpaper.setEnabled(True)
+
+    def _upload_wallpaper(self):
+        if not self.wallpaper_file_path:
+            return
+        self.btn_upload_wallpaper.setEnabled(False)
+        self.btn_upload_wallpaper.setText("Uploading…")
+
+        size_text = self.wallpaper_size.currentText()
+        width, height = (320, 480) if "3.5" in size_text else (240, 320)
+        slot2 = self.wallpaper_slot.currentIndex() == 1
+
+        def _work():
+            try:
+                with open(self.wallpaper_file_path, "rb") as f:
+                    raw = f.read()
+                img = Image.open(io.BytesIO(raw))
+                if img.mode != "RGB":
+                    img = img.convert("RGB")
+                img = img.resize((width, height), Image.Resampling.LANCZOS)
+
+                quality, jpeg_data = 95, b""
+                while quality > 5:
+                    buf = io.BytesIO()
+                    img.save(buf, format="JPEG", quality=quality, optimize=False)
+                    jpeg_data = buf.getvalue()
+                    if len(jpeg_data) <= 30 * 1024:
+                        break
+                    quality -= 5
+
+                res = self.device.upload_wallpaper(jpeg_data, slot2=slot2)
+                if res.get("success"):
+                    self.wallpaper_upload_status_updated.emit("✓ Wallpaper saved to device", "#16a34a", True)
+                else:
+                    self.wallpaper_upload_status_updated.emit(f"Error: {res.get('error', '?')}", "#dc2626", True)
+            except Exception as e:
+                logger.error(f"Wallpaper image error: {e}")
+                self.wallpaper_upload_status_updated.emit("Processing error", "#dc2626", True)
 
         threading.Thread(target=_work, daemon=True).start()
 
@@ -1274,57 +1444,7 @@ class TrayFlyout(QWidget):
         from PyQt6.QtCore import QTimer
         QTimer.singleShot(3000, lambda: label.setVisible(False))
 
-    def _select_idle_image(self):
-        path, _ = QFileDialog.getOpenFileName(self, "Select Idle Image", "", "JPEG (*.jpg *.jpeg)")
-        if path:
-            self.idle_img_file_path = path
-            self.idle_img_label.setText(os.path.basename(path))
-            self.idle_img_label.setStyleSheet("color: #374151;")
-            if self.device.connected:
-                self.btn_upload_idle_img.setEnabled(True)
 
-    def _upload_idle_image(self):
-        if not self.idle_img_file_path:
-            return
-        self.btn_upload_idle_img.setEnabled(False)
-        self.btn_upload_idle_img.setText("Uploading…")
-
-        size_text = self.idle_img_size_dropdown.currentText()
-        width, height = (320, 480) if "3.5" in size_text else (240, 320)
-        is_slot2 = self.idle_img_slot.currentIndex() == 1
-
-        def _work():
-            try:
-                with open(self.idle_img_file_path, "rb") as f:
-                    raw = f.read()
-                img = Image.open(io.BytesIO(raw))
-                if img.mode != "RGB":
-                    img = img.convert("RGB")
-                img = img.resize((width, height), Image.Resampling.LANCZOS)
-
-                quality, jpeg_data = 95, b""
-                while quality > 5:
-                    buf = io.BytesIO()
-                    img.save(buf, format="JPEG", quality=quality, optimize=False)
-                    jpeg_data = buf.getvalue()
-                    if len(jpeg_data) <= 30 * 1024:
-                        break
-                    quality -= 5
-
-                if is_slot2:
-                    res = self.device.upload_idle_image_2(jpeg_data)
-                else:
-                    res = self.device.upload_idle_image(jpeg_data)
-
-                if res.get("success"):
-                    self.upload_status_updated.emit("✓ Idle image uploaded", "#16a34a", True)
-                else:
-                    self.upload_status_updated.emit(f"Error: {res.get('error', '?')}", "#dc2626", True)
-            except Exception as e:
-                logger.error(f"Idle image error: {e}")
-                self.upload_status_updated.emit("Processing error", "#dc2626", True)
-
-        threading.Thread(target=_work, daemon=True).start()
 
     def _fetch_languages(self):
         langs = get_languages()
@@ -1389,14 +1509,15 @@ class TrayFlyout(QWidget):
         self.port_dropdown.clear()
         ports = self.device.get_available_ports()
         
-        if not ports:
-            self.port_dropdown.addItem("No ports found")
+        # Filter for CH340/CH341 type devices
+        ch340_ports = [p for p in ports if p["is_ch340"]]
+        
+        if not ch340_ports:
+            self.port_dropdown.addItem("No Nizi devices found")
             return
 
-        for p in ports:
-            label = f"{p['port']} - {p['description']}"
-            if p["is_ch340"]:
-                label += f" ({APP_NAME})"
+        for p in ch340_ports:
+            label = f"{p['port']} - {p['description']} ({APP_NAME})"
             self.port_dropdown.addItem(label, p["port"])
 
     def _on_mode_changed(self, button):
@@ -1417,19 +1538,19 @@ class TrayFlyout(QWidget):
         """
         device_id = (getattr(self.device, "device_id", None) or "").upper().replace("_", "")
         if "B30" in device_id or "B31" in device_id:
-            self.img_size_dropdown.setCurrentIndex(0)
-            self.img_size_dropdown.setEnabled(False)
-            self.idle_img_size_dropdown.setCurrentIndex(0)
-            self.idle_img_size_dropdown.setEnabled(False)
+            self.preview_size.setCurrentIndex(0)
+            self.preview_size.setEnabled(False)
+            self.wallpaper_size.setCurrentIndex(0)
+            self.wallpaper_size.setEnabled(False)
         elif "B32" in device_id or "B33" in device_id:
-            self.img_size_dropdown.setCurrentIndex(1)
-            self.img_size_dropdown.setEnabled(False)
-            self.idle_img_size_dropdown.setCurrentIndex(1)
-            self.idle_img_size_dropdown.setEnabled(False)
+            self.preview_size.setCurrentIndex(1)
+            self.preview_size.setEnabled(False)
+            self.wallpaper_size.setCurrentIndex(1)
+            self.wallpaper_size.setEnabled(False)
         else:
             # Unknown device id: allow manual selection.
-            self.img_size_dropdown.setEnabled(True)
-            self.idle_img_size_dropdown.setEnabled(True)
+            self.preview_size.setEnabled(True)
+            self.wallpaper_size.setEnabled(True)
 
         # Buzzer is only available on B30 and B32
         has_buzzer = "B30" in device_id or "B32" in device_id
@@ -1440,10 +1561,17 @@ class TrayFlyout(QWidget):
 
     @pyqtSlot(str, str, bool)
     def _on_upload_status(self, text, color, enable):
-        self.img_label.setText(text)
-        self.img_label.setStyleSheet(f"color: {color};")
-        self.btn_upload_img.setText("Upload to Device")
-        self.btn_upload_img.setEnabled(enable)
+        self.preview_label.setText(text)
+        self.preview_label.setStyleSheet(f"color: {color};")
+        self.btn_upload_preview.setText("Show Preview on Device")
+        self.btn_upload_preview.setEnabled(enable)
+
+    @pyqtSlot(str, str, bool)
+    def _on_wallpaper_upload_status(self, text, color, enable):
+        self.wallpaper_label.setText(text)
+        self.wallpaper_label.setStyleSheet(f"color: {color};")
+        self.btn_upload_wallpaper.setText("Save Wallpaper to Device")
+        self.btn_upload_wallpaper.setEnabled(enable)
 
     @pyqtSlot(bool, str)
     def _on_status_updated(self, connected, port):
@@ -1481,12 +1609,13 @@ class TrayFlyout(QWidget):
 
             self.commands_container.setVisible(True)
             self.port_selection_container.setVisible(False)
-            if self.img_file_path:
-                self.btn_upload_img.setEnabled(True)
-            if hasattr(self, 'idle_img_file_path') and self.idle_img_file_path:
-                self.btn_upload_idle_img.setEnabled(True)
+            if hasattr(self, 'preview_file_path') and self.preview_file_path:
+                self.btn_upload_preview.setEnabled(True)
+            if hasattr(self, 'wallpaper_file_path') and self.wallpaper_file_path:
+                self.btn_upload_wallpaper.setEnabled(True)
         else:
-            self.img_size_dropdown.setEnabled(True)
+            self.preview_size.setEnabled(True)
+            self.wallpaper_size.setEnabled(True)
             self.status_label.setText("Disconnected")
             self.status_label.setStyleSheet("color: #64748b; font-size: 15px; font-weight: 600;")
             self.instruction_label.setText("Plug in device to get started.")
@@ -1533,6 +1662,30 @@ class TrayFlyout(QWidget):
         if self.on_quit_callback:
             self.on_quit_callback()
 
+    def _open_log_file(self):
+        from config import config
+        log_file = config.config_dir / "app.log"
+        if log_file.exists():
+            QDesktopServices.openUrl(QUrl.fromLocalFile(log_file.as_posix()))
+
+    def _refresh_logs(self):
+        from config import config
+        log_file = config.config_dir / "app.log"
+        if log_file.exists():
+            try:
+                with open(log_file, "r", encoding="utf-8") as f:
+                    lines = f.readlines()
+                # Show last 50 lines
+                self.log_display.setPlainText("".join(lines[-50:]))
+            except Exception as e:
+                self.log_display.setPlainText(f"Failed to read log: {e}")
+        else:
+            self.log_display.setPlainText("Log file does not exist yet.")
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        self._refresh_logs()
+
     # ── Window management ────────────────────────────────────────────────
 
     def closeEvent(self, event):
@@ -1551,6 +1704,11 @@ class TrayFlyout(QWidget):
 
     def show_window(self):
         self.adjustSize()
+        if hasattr(self, 'scroll_content'):
+            # Calculate the ideal height to show all controls without scrolling
+            ideal_h = self.scroll_content.sizeHint().height() + 40
+            self.resize(self.width(), min(ideal_h, self.maximumHeight()))
+            
         screen = QApplication.primaryScreen()
         geo = screen.availableGeometry()
         x = geo.x() + (geo.width() - self.width()) // 2
@@ -1560,6 +1718,12 @@ class TrayFlyout(QWidget):
         self.raise_()
         self.activateWindow()
         self._is_visible = True
+        
+        # Force foreground focus on macOS for background agents (LSUIElement=True)
+        import platform
+        if platform.system() == "Darwin":
+            import os
+            os.system("osascript -e 'tell application \"System Events\" to set frontmost of every process whose name is \"NiziPOSConnector\" to true' >/dev/null 2>&1")
 
     def hide(self):
         super().hide()

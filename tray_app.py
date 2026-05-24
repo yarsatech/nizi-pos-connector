@@ -6,7 +6,7 @@ import logging
 import webbrowser
 import os
 from PyQt6.QtWidgets import QSystemTrayIcon, QMenu
-from PyQt6.QtGui import QIcon, QAction
+from PyQt6.QtGui import QIcon, QAction, QCursor
 from PyQt6.QtCore import QObject
 from PIL import Image, ImageDraw
 import io
@@ -112,6 +112,12 @@ class TrayApp(QObject):
 
     def _on_tray_activated(self, reason):
         """Handle tray icon click."""
+        import platform
+        if platform.system() == "Darwin":
+            # On macOS, left-click natively triggers the context menu.
+            # Doing it manually here causes duplicate overlapping menus.
+            return
+            
         if reason == QSystemTrayIcon.ActivationReason.Trigger:
             self._on_toggle_ui()
 
