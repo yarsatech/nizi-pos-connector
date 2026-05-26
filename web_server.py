@@ -305,13 +305,12 @@ def api_idle_mode():
         result = device.set_idle_cycle(img1, time1, img2, time2)
     elif mode == "SLEEP":
         image_name = data.get("image_name", "IMG1")
-        result = device.set_idle_sleep(image_name)
-        if "screentime_s" in data:
-            device.set_screentime(int(data["screentime_s"]))
+        inactivity_ms = max(30000, int(data.get("inactivity_ms", 30000)))
+        result = device.set_idle_sleep(image_name, inactivity_ms)
     elif mode == "SLEEP_WAKE":
         image_name = data.get("image_name", "IMG1")
         wake_ms = int(data.get("wake_ms", 120000))
-        sleep_ms = int(data.get("sleep_ms", 30000))
+        sleep_ms = max(30000, int(data.get("sleep_ms", 30000)))
         result = device.set_idle_sleep_wake(image_name, sleep_ms, wake_ms)
     else:
         return jsonify({"success": False, "error": f"Unknown idle mode: {mode!r}. Use SINGLE, CYCLE, SLEEP, or SLEEP_WAKE."}), 400

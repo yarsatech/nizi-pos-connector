@@ -195,7 +195,7 @@ Configures the device idle/inactivity behavior.
 {
   "mode": "SLEEP",
   "image_name": "IMG1",
-  "screentime_s": 30
+  "inactivity_ms": 30000
 }
 ```
 
