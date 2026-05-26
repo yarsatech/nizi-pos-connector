@@ -122,14 +122,11 @@ jobs:
           PY
 
       - name: Publish GitHub Release assets
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ github.ref_name }}
-          files: |
-            manifest-linux.json
-            NiziPOSConnector-linux-ota-*.zip
-            dist/*.deb
-            dist/*.rpm
-            dist/*.zst
+        shell: bash
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Create release if it doesn't exist
+          gh release view ${{ github.ref_name }} || gh release create ${{ github.ref_name }} --title ${{ github.ref_name }} --notes "Release ${{ github.ref_name }}"
+          # Upload assets
+          gh release upload ${{ github.ref_name }} manifest-linux.json NiziPOSConnector-linux-ota-*.zip dist/*.deb dist/*.rpm dist/*.zst --clobber
