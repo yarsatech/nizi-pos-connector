@@ -63,8 +63,8 @@ echo "✅ Successfully built: $APP_BUNDLE_PATH"
 
 # --- 5. Prepare Package Staging Directory ---
 echo "Staging files for .pkg installer..."
-PKG_ROOT="pkg_staging/pkg_root"
-PKG_SCRIPTS="pkg_staging/pkg_scripts"
+PKG_ROOT="build/pkg_root"
+PKG_SCRIPTS="build/pkg_scripts"
 
 rm -rf "$PKG_ROOT" "$PKG_SCRIPTS"
 mkdir -p "$PKG_ROOT/Applications"
@@ -152,7 +152,7 @@ chmod +x "$POSTINSTALL_PATH"
 
 # --- 7. Generate & Customize Component Plist to Disable Bundle Relocation ---
 echo "Analyzing bundle components to disable relocation..."
-COMPONENTS_PLIST="pkg_staging/components.plist"
+COMPONENTS_PLIST="build/components.plist"
 pkgbuild --analyze --root "$PKG_ROOT" "$COMPONENTS_PLIST"
 
 # Use python to set BundleIsRelocatable to false for all components
