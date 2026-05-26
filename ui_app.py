@@ -599,7 +599,8 @@ class TrayFlyout(QWidget):
             "Text Display",
             "Idle Mode",
         ])
-        self.page_selector.setMinimumWidth(160)
+        self.page_selector.setMinimumWidth(128)
+        self.page_selector.setMaxVisibleItems(4)
         self.page_selector.currentIndexChanged.connect(self._switch_page)
         section_row.addWidget(self.page_selector)
         commands_layout.addLayout(section_row)
@@ -884,6 +885,11 @@ class TrayFlyout(QWidget):
         self.idle_fields_layout.addWidget(self.idle_sleep_ms_label)
         self.idle_fields_layout.addWidget(self.idle_sleep_ms)
 
+        self.idle_screentime_label = self._make_field_label("Inactivity Timeout (s)")
+        self.idle_screentime = QLineEdit("30")
+        self.idle_fields_layout.addWidget(self.idle_screentime_label)
+        self.idle_fields_layout.addWidget(self.idle_screentime)
+
         self.idle_wake_ms_label = self._make_field_label("Wake Duration (ms)")
         self.idle_wake_ms = QLineEdit("120000")
         self.idle_fields_layout.addWidget(self.idle_wake_ms_label)
@@ -1144,6 +1150,12 @@ class TrayFlyout(QWidget):
         self.btn_format.clicked.connect(lambda: self.device.send_command("FORMAT"))
         row2.addWidget(self.btn_format)
         layout.addLayout(row2)
+
+        self.btn_quick_qr = QPushButton("📲 Send QR")
+        self.btn_quick_qr.setObjectName("secondaryBtn")
+        self.btn_quick_qr.clicked.connect(self._send_qr)
+        layout.addWidget(self.btn_quick_qr)
+
         self.btn_quick_wait = QPushButton("⏳ WAIT")
         self.btn_quick_wait.setObjectName("secondaryBtn")
         self.btn_quick_wait.clicked.connect(self._quick_send_wait)
@@ -1154,10 +1166,7 @@ class TrayFlyout(QWidget):
         self.btn_quick_pass.clicked.connect(self._quick_send_pass)
         layout.addWidget(self.btn_quick_pass)
 
-        self.btn_quick_qr = QPushButton("📲 Send QR")
-        self.btn_quick_qr.setObjectName("secondaryBtn")
-        self.btn_quick_qr.clicked.connect(self._send_qr)
-        layout.addWidget(self.btn_quick_qr)
+
 
         self.stack.addWidget(page)
 
@@ -1346,16 +1355,22 @@ class TrayFlyout(QWidget):
         is_single = (index == 1)
         is_cycle = (index == 2)
         is_sleep = (index == 3)
+        is_sleep_wake = (index == 0)
 
-        # Image name — shown for SINGLE and CYCLE modes only (SLEEP/SLEEP_WAKE use timings)
-        self.idle_img1_label.setVisible(is_single or is_cycle)
-        self.idle_img1.setVisible(is_single or is_cycle)
+        # Image name — shown for ALL modes
+        self.idle_img1_label.setVisible(True)
+        self.idle_img1.setVisible(True)
 
         # Sleep/Wake durations — only SLEEP_WAKE
-        self.idle_sleep_ms_label.setVisible(is_sleep_wake or is_sleep)
-        self.idle_sleep_ms.setVisible(is_sleep_wake or is_sleep)
+        self.idle_sleep_ms_label.setVisible(is_sleep_wake)
+        self.idle_sleep_ms.setVisible(is_sleep_wake)
         self.idle_wake_ms_label.setVisible(is_sleep_wake)
         self.idle_wake_ms.setVisible(is_sleep_wake)
+
+        # Screentime — only SLEEP
+        if hasattr(self, 'idle_screentime_label'):
+            self.idle_screentime_label.setVisible(is_sleep)
+            self.idle_screentime.setVisible(is_sleep)
 
         # Second image + durations — only CYCLE
         self.idle_img2_label.setVisible(is_cycle)
@@ -1383,7 +1398,7 @@ class TrayFlyout(QWidget):
                 sleep_ms = int(self.idle_sleep_ms.text())
             except ValueError:
                 wake_ms, sleep_ms = 120000, 30000
-            self.device.set_idle_sleep_wake(wake_ms, sleep_ms)
+            self.device.set_idle_sleep_wake(img1, sleep_ms, wake_ms)
         elif index == 1:  # SINGLE
             self.device.set_idle_single(img1)
         elif index == 2:  # CYCLE
@@ -1396,10 +1411,11 @@ class TrayFlyout(QWidget):
             self.device.set_idle_cycle(img1, time1, img2, time2)
         elif index == 3:  # SLEEP
             try:
-                sleep_ms = int(self.idle_sleep_ms.text())
+                screentime_s = int(self.idle_screentime.text())
             except ValueError:
-                sleep_ms = 30000
-            self.device.set_idle_sleep(sleep_ms)
+                screentime_s = 30
+            self.device.set_idle_sleep(img1)
+            self.device.set_screentime(screentime_s)
         self._show_feedback(self.idle_mode_feedback, "✓ Command sent")
 
     def _send_timeout(self):

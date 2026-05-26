@@ -457,13 +457,17 @@ class DeviceManager:
         """Alternate between two images at defined intervals (ms)."""
         return self.send_command(f"IDLE_CYCLE**{img1}**{time1}**{img2}**{time2}")
 
-    def set_idle_sleep(self, sleep_ms: int = 30000):
-        """Set inactivity sleep timer (ms); turns off backlight after the delay."""
-        return self.send_command(f"IDLE_SLEEP**{sleep_ms}")
+    def set_idle_sleep(self, image_name: str = "IMG1"):
+        """Set idle mode to Sleep with persistent image name (sleep duration set by SCREENTIME)."""
+        return self.send_command(f"IDLE_SLEEP**{image_name}")
 
-    def set_idle_sleep_wake(self, wake_ms: int = 120000, sleep_ms: int = 30000):
-        """Auto-cycle between Wake and Sleep states: IDLE_SLEEP_WAKE**[W]**[S]."""
-        return self.send_command(f"IDLE_SLEEP_WAKE**{wake_ms}**{sleep_ms}")
+    def set_screentime(self, seconds: int = 30):
+        """Set inactivity sleep timer in seconds (Min: 30s, Max: 300s, 0 to disable)."""
+        return self.send_command(f"SCREENTIME**{seconds}")
+
+    def set_idle_sleep_wake(self, image_name: str = "IMG1", sleep_ms: int = 30000, wake_ms: int = 120000):
+        """Auto-cycle between Wake and Sleep states: IDLE_SLEEP_WAKE**[ImageName]**[SleepMS]**[WakeMS]."""
+        return self.send_command(f"IDLE_SLEEP_WAKE**{image_name}**{sleep_ms}**{wake_ms}")
 
     # ── Image upload ────────────────────────────────────────────────────
 

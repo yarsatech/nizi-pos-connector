@@ -194,7 +194,8 @@ Configures the device idle/inactivity behavior.
 ```json
 {
   "mode": "SLEEP",
-  "sleep_ms": 30000
+  "image_name": "IMG1",
+  "screentime_s": 30
 }
 ```
 
@@ -202,8 +203,9 @@ Configures the device idle/inactivity behavior.
 ```json
 {
   "mode": "SLEEP_WAKE",
-  "wake_ms": 120000,
-  "sleep_ms": 30000
+  "image_name": "IMG1",
+  "sleep_ms": 30000,
+  "wake_ms": 120000
 }
 ```
 
