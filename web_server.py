@@ -7,6 +7,7 @@ import os
 import threading
 import io
 from PIL import Image
+from typing import Optional
 
 from flask import Flask, jsonify, request, send_from_directory
 from flask_socketio import SocketIO
@@ -64,7 +65,7 @@ def add_cors_headers(response):
     return response
 
 
-def _on_device_status(connected: bool, port: str | None):
+def _on_device_status(connected: bool, port: Optional[str]):
     """Push connection status to all connected browser clients."""
     socketio.emit(
         "device_status",
