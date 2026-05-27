@@ -145,13 +145,14 @@ QComboBox QAbstractItemView {{
     border: 1px solid {c['border']};
     selection-background-color: {c['selection_bg']};
     selection-color: {c['text_primary']};
-    padding: 6px;
-    border-radius: 12px;
+    padding: 2px;
+    border-radius: 8px;
 }}
 QComboBox QAbstractItemView::item {{
-    padding: 10px 16px;
-    margin: 2px 0px;
-    border-radius: 8px;
+    padding: 2px 6px;
+    margin: 0px;
+    min-height: 20px;
+    border-radius: 4px;
     color: {c['text_primary']};
 }}
 QComboBox QAbstractItemView::item:hover {{

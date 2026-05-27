@@ -141,17 +141,18 @@ QComboBox::down-arrow {
 QComboBox QAbstractItemView {
     font-size: 10pt;
     border: 1px solid #e5e7eb;
-    border-radius: 12px;
+    border-radius: 8px;
     background-color: #ffffff;
     selection-background-color: #f3f4f6;
     selection-color: #ef4444;
     outline: 0;
-    padding: 6px;
+    padding: 2px;
 }
 QComboBox QAbstractItemView::item {
-    padding: 10px 16px;
-    margin: 2px 0px;
-    border-radius: 8px;
+    padding: 2px 6px;
+    margin: 0px;
+    min-height: 20px;
+    border-radius: 4px;
     color: #374151;
 }
 QComboBox QAbstractItemView::item:hover {
@@ -599,8 +600,10 @@ class TrayFlyout(QWidget):
             "Text Display",
             "Idle Mode",
         ])
-        self.page_selector.setMinimumWidth(128)
-        self.page_selector.setMaxVisibleItems(4)
+        self.page_selector.setMinimumWidth(120)
+        self.page_selector.setMaxVisibleItems(10)
+        from PyQt6.QtWidgets import QStyledItemDelegate
+        self.page_selector.setItemDelegate(QStyledItemDelegate(self.page_selector))
         self.page_selector.currentIndexChanged.connect(self._switch_page)
         section_row.addWidget(self.page_selector)
         commands_layout.addLayout(section_row)
