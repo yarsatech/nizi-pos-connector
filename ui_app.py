@@ -131,9 +131,19 @@ class TrayFlyout(QWidget):
         main_layout.addWidget(scroll)
 
         # Header
+        from config import APP_VERSION
+        header_layout = QHBoxLayout()
         title = QLabel("NIZI POS")
         title.setObjectName("headerTitle")
-        root.addWidget(title)
+        
+        version_lbl = QLabel(f"v{APP_VERSION}")
+        version_lbl.setObjectName("versionLabel")
+        
+        header_layout.addWidget(title)
+        header_layout.addStretch()
+        header_layout.addWidget(version_lbl)
+        
+        root.addLayout(header_layout)
 
         # Status card
         card = QFrame()

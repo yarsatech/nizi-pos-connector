@@ -195,6 +195,7 @@ def get_flyout_stylesheet(is_light: bool, arrow_path: str) -> str:
 * {{ font-family: {c['font_family']}; }}
 QWidget#mainWindow {{ background-color: {c['window_bg']}; }}
 QLabel#headerTitle {{ font-size: {c['font_size_xl']}; font-weight: 700; color: {c['text_primary']}; }}
+QLabel#versionLabel {{ font-size: {c['font_size_sm']}; font-weight: 600; color: {c['text_muted']}; }}
 QLabel#statusLabel {{ font-size: {c['font_size_lg']}; font-weight: 600; background: transparent; border: none; color: {c['text_primary']}; }}
 QLabel#statusLabel[state="connected"] {{ color: {c['success_text']}; }}
 QLabel#statusLabel[state="disconnected"] {{ color: {c['text_muted']}; }}
