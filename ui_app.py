@@ -898,7 +898,7 @@ class TrayFlyout(QWidget):
         )
 
     def _select_preview_image(self):
-        path, _ = QFileDialog.getOpenFileName(self, "Select Preview Image", "", "JPEG (*.jpg *.jpeg)")
+        path, _ = QFileDialog.getOpenFileName(self, "Select Preview Image", "", "Images (*.jpg *.jpeg *.png)")
         if path:
             self.preview_file_path = path
             self.preview_label.setText(os.path.basename(path))
@@ -955,7 +955,7 @@ class TrayFlyout(QWidget):
         threading.Thread(target=_work, daemon=True).start()
 
     def _select_wallpaper(self):
-        path, _ = QFileDialog.getOpenFileName(self, "Select Wallpaper Image", "", "JPEG (*.jpg *.jpeg)")
+        path, _ = QFileDialog.getOpenFileName(self, "Select Wallpaper Image", "", "Images (*.jpg *.jpeg *.png)")
         if path:
             self.wallpaper_file_path = path
             self.wallpaper_label.setText(os.path.basename(path))
