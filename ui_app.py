@@ -21,7 +21,7 @@ from PyQt6.QtCore import Qt, pyqtSignal, pyqtSlot, QUrl
 from PyQt6.QtGui import QFont, QGuiApplication, QIcon, QDesktopServices, QPixmap
 
 from config import APP_NAME
-from theme_support import flyout_dark_stylesheet, prefers_light_theme
+from theme_support import prefers_light_theme, get_flyout_stylesheet, get_theme_tokens
 from ota.firmware_api import get_languages, build_update_url, extract_model_code
 
 logger = logging.getLogger(__name__)
@@ -30,350 +30,7 @@ logger = logging.getLogger(__name__)
 
 # ── Modern Stylesheet ────────────────────────────────────────────────────
 
-STYLESHEET = """
-* {
-    font-family: 'Segoe UI', 'Arial', sans-serif;
-}
 
-QWidget#mainWindow {
-    background-color: #ffffff;
-}
-
-QLabel#headerTitle {
-    font-size: 16pt;
-    font-weight: 700;
-    color: #111827;
-}
-
-QLabel#statusLabel {
-    font-size: 11pt;
-    font-weight: 600;
-    background: transparent;
-    border: none;
-}
-
-QLabel#instructionLabel {
-    font-size: 9pt;
-    color: #6b7280;
-    background: transparent;
-    border: none;
-}
-
-QLabel#sectionTitle {
-    font-size: 10pt;
-    font-weight: 600;
-    color: #111827;
-    background: transparent;
-}
-
-QLabel#fieldLabel {
-    font-size: 8pt;
-    color: #6b7280;
-    font-weight: 500;
-    margin-top: 12px;
-    margin-bottom: 0px;
-    background: transparent;
-}
-
-QLabel#modeLabel {
-    font-size: 9pt;
-    color: #374151;
-    font-weight: 600;
-    margin-top: 0px;
-    background: transparent;
-}
-
-QFrame#statusCard {
-    background-color: #f9fafb;
-    border: 1px solid #e5e7eb;
-    border-radius: 12px;
-}
-
-QFrame#separator {
-    background-color: #e5e7eb;
-    max-height: 1px;
-    border: none;
-}
-
-QLabel#imagePreview {
-    border: 2px dashed #cbd5e1;
-    border-radius: 8px;
-    background-color: #f8fafc;
-    color: #94a3b8;
-    font-weight: 500;
-}
-
-QTextEdit#logDisplay {
-    background-color: #f8fafc;
-    border: 1px solid #e2e8f0;
-    font-family: monospace;
-}
-
-/* ── Dropdown (QComboBox) ─────────────────────────────── */
-
-QComboBox {
-    font-size: 10pt;
-    padding: 6px 12px;
-    border: 1px solid #d1d5db;
-    border-radius: 8px;
-    background-color: #ffffff;
-    color: #111827;
-    min-height: 20px;
-}
-QComboBox:hover {
-    border-color: #fca5a5;
-}
-QComboBox:focus {
-    border-color: #ef4444;
-}
-QComboBox::drop-down {
-    subcontrol-origin: padding;
-    subcontrol-position: center right;
-    width: 30px;
-    border: none;
-    background: transparent;
-}
-QComboBox::down-arrow {
-    image: url({ARROW_PATH});
-    width: 14px;
-    height: 14px;
-}
-QComboBox QAbstractItemView {
-    font-size: 10pt;
-    border: 1px solid #e5e7eb;
-    border-radius: 8px;
-    background-color: #ffffff;
-    selection-background-color: #f3f4f6;
-    selection-color: #ef4444;
-    outline: 0;
-    padding: 2px;
-}
-QComboBox QAbstractItemView::item {
-    padding: 2px 6px;
-    margin: 0px;
-    min-height: 20px;
-    border-radius: 4px;
-    color: #374151;
-}
-QComboBox QAbstractItemView::item:hover {
-    background-color: #f3f4f6;
-    color: #ef4444;
-}
-QComboBox QAbstractItemView::item:selected {
-    background-color: #fef2f2;
-    color: #ef4444;
-    font-weight: 600;
-}
-
-/* ── Inputs ───────────────────────────────────────────── */
-
-QLineEdit {
-    font-size: 10pt;
-    padding: 6px 12px;
-    border: 1px solid #d1d5db;
-    border-radius: 8px;
-    background-color: #ffffff;
-    color: #111827;
-}
-QLineEdit:focus {
-    border-color: #ef4444;
-    background-color: #fefefe;
-}
-QLineEdit::placeholder {
-    color: #9ca3af;
-}
-
-QLineEdit::selection {
-    background-color: #ef4444;
-    color: #ffffff;
-}
-
-QTextEdit {
-    font-size: 10pt;
-    padding: 6px 12px;
-    border: 1px solid #d1d5db;
-    border-radius: 8px;
-    background-color: #ffffff;
-    color: #111827;
-}
-QTextEdit:focus {
-    border-color: #ef4444;
-}
-
-QTextEdit::selection {
-    background-color: #ef4444;
-    color: #ffffff;
-}
-
-/* ── Buttons ──────────────────────────────────────────── */
-
-QPushButton#primaryBtn {
-    font-size: 10pt;
-    padding: 8px 16px;
-    background-color: #ef4444;
-    color: #ffffff;
-    border: none;
-    border-radius: 8px;
-    font-weight: 600;
-}
-QPushButton#primaryBtn:hover {
-    background-color: #dc2626;
-}
-QPushButton#primaryBtn:pressed {
-    background-color: #b91c1c;
-}
-QPushButton#primaryBtn:disabled {
-    background-color: #7f1d1d;
-    color: #fee2e2;
-}
-
-QPushButton#secondaryBtn {
-    font-size: 10pt;
-    padding: 8px 16px;
-    background-color: #ffffff;
-    color: #374151;
-    border: 1px solid #d1d5db;
-    border-radius: 8px;
-    font-weight: 500;
-}
-QPushButton#secondaryBtn:hover {
-    background-color: #f3f4f6;
-    border-color: #fca5a5;
-}
-
-QPushButton#dangerBtn {
-    font-size: 10pt;
-    padding: 8px 16px;
-    background-color: #fef2f2;
-    color: #dc2626;
-    border: 1px solid #fecaca;
-    border-radius: 8px;
-    font-weight: 500;
-}
-QPushButton#dangerBtn:hover {
-    background-color: #fee2e2;
-    border-color: #f87171;
-}
-
-QPushButton#warningBtn {
-    font-size: 10pt;
-    padding: 8px 16px;
-    background-color: #fffbeb;
-    color: #d97706;
-    border: 1px solid #fde68a;
-    border-radius: 8px;
-    font-weight: 500;
-}
-QPushButton#warningBtn:hover {
-    background-color: #fef3c7;
-    border-color: #f59e0b;
-}
-
-QPushButton#ghostBtn {
-    font-size: 9pt;
-    padding: 8px 12px;
-    background: transparent;
-    color: #9ca3af;
-    border: none;
-}
-QPushButton#ghostBtn:hover {
-    color: #ef4444;
-}
-
-QPushButton#connectBtn {
-    font-size: 10pt;
-    padding: 10px 20px;
-    background-color: #ef4444;
-    color: #ffffff;
-    border: none;
-    border-radius: 10px;
-    font-weight: 600;
-}
-QPushButton#connectBtn:hover {
-    background-color: #dc2626;
-}
-QPushButton#connectBtn:disabled {
-    background-color: #7f1d1d;
-    color: #fee2e2;
-}
-
-QPushButton#disconnectBtn {
-    font-size: 10pt;
-    padding: 10px 20px;
-    background-color: #ffffff;
-    color: #6b7280;
-    border: 1px solid #d1d5db;
-    border-radius: 10px;
-    font-weight: 500;
-}
-QPushButton#disconnectBtn:hover {
-    border-color: #fca5a5;
-    color: #374151;
-}
-
-/* ── Radio Buttons ────────────────────────────────────── */
-
-QRadioButton {
-    font-size: 10pt;
-    color: #374151;
-    spacing: 8px;
-    padding: 4px;
-}
-QRadioButton::indicator {
-    width: 18px;
-    height: 18px;
-    border: 2px solid #d1d5db;
-    border-radius: 11px;
-    background: #ffffff;
-}
-QRadioButton::indicator:hover {
-    border-color: #fca5a5;
-}
-QRadioButton::indicator:checked {
-    border-color: #ef4444;
-    background-color: #ef4444;
-    image: url(data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0id2hpdGUiPjxjaXJjbGUgY3g9IjEyIiBjeT0iMTIiIHI9IjUiLz48L3N2Zz4=);
-}
-QRadioButton:disabled {
-    color: #9ca3af;
-}
-QRadioButton::indicator:disabled {
-    border-color: #e5e7eb;
-    background-color: #f9fafb;
-}
-
-/* ── Sliders ──────────────────────────────────────────── */
-
-QSlider::groove:horizontal {
-    border-radius: 4px;
-    height: 8px;
-    background: #e5e7eb;
-}
-QSlider::sub-page:horizontal {
-    background: #ef4444;
-    border-radius: 4px;
-}
-QSlider::handle:horizontal {
-    background: #ffffff;
-    border: 1px solid #d1d5db;
-    width: 18px;
-    margin-top: -6px;
-    margin-bottom: -6px;
-    border-radius: 9px;
-}
-QSlider::handle:horizontal:hover {
-    background: #f9fafb;
-    border-color: #fca5a5;
-}
-QSlider::handle:horizontal:pressed {
-    background: #fef2f2;
-    border-color: #ef4444;
-}
-
-QDialog {
-    background-color: #ffffff;
-}
-"""
 
 
 
@@ -421,10 +78,8 @@ class TrayFlyout(QWidget):
         if app is not None:
             palette_lightness = app.palette().window().color().lightness()
         self._light_theme = prefers_light_theme(palette_lightness=palette_lightness)
-        stylesheet = STYLESHEET.replace("{ARROW_PATH}", _arrow)
-        if not self._light_theme:
-            stylesheet += "\n" + flyout_dark_stylesheet()
-        self.setStyleSheet(stylesheet)
+        self.theme_tokens = get_theme_tokens(self._light_theme)
+        self.setStyleSheet(get_flyout_stylesheet(self._light_theme, _arrow))
 
         self.status_updated.connect(self._on_status_updated)
         self.upload_status_updated.connect(self._on_upload_status)
@@ -529,7 +184,7 @@ class TrayFlyout(QWidget):
         self.update_available_label = QLabel("⚠ Firmware update available")
         self.update_available_label.setObjectName("instructionLabel")
         self.update_available_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.update_available_label.setStyleSheet("color: #d97706; font-weight: 600;")
+        self.update_available_label.setStyleSheet(f"color: {self.theme_tokens["warning_text"]}; font-weight: 600;")
         self.update_available_label.setVisible(False)
         card_layout.addWidget(self.update_available_label)
 
@@ -620,8 +275,9 @@ class TrayFlyout(QWidget):
         self._build_page_qr()             # index 4 — QR Display
         self._build_page_text()           # index 5 — Text Display
         self._build_page_idle_mode()      # index 6 — Idle Mode
-
         self.page_selector.setCurrentIndex(0)  # default: Quick Actions
+        self._switch_page(0)  # explicitly trigger the size policy update
+        
         root.addWidget(self.commands_container)
 
         # Footer
@@ -754,7 +410,7 @@ class TrayFlyout(QWidget):
         wall_card_layout.setSpacing(6)
 
         wall_title = QLabel("Wallpaper Image (Saves on Device)")
-        wall_title.setStyleSheet("font-weight: 700; color: #ef4444; font-size: 10pt;")
+        wall_title.setStyleSheet(f"font-weight: 700; color: {self.theme_tokens["accent"]}; font-size: 10pt;")
         wall_card_layout.addWidget(wall_title)
 
         self.wallpaper_file_path = None
@@ -809,7 +465,7 @@ class TrayFlyout(QWidget):
         temp_card_layout.setSpacing(6)
 
         temp_title = QLabel("Temporary Image (Real-time Preview)")
-        temp_title.setStyleSheet("font-weight: 700; color: #ef4444; font-size: 10pt;")
+        temp_title.setStyleSheet(f"font-weight: 700; color: {self.theme_tokens["accent"]}; font-size: 10pt;")
         temp_card_layout.addWidget(temp_title)
 
         self.preview_file_path = None
@@ -943,7 +599,7 @@ class TrayFlyout(QWidget):
         vol_header.addWidget(self._make_field_label("Volume"))
         vol_header.addStretch()
         self.volume_val_label = QLabel("80%")
-        self.volume_val_label.setStyleSheet("color: #374151; font-weight: 600; font-size: 9pt;")
+        self.volume_val_label.setStyleSheet(f"color: {self.theme_tokens["text_secondary"]}; font-weight: 600; font-size: 9pt;")
         vol_header.addWidget(self.volume_val_label)
         layout.addLayout(vol_header)
 
@@ -965,7 +621,7 @@ class TrayFlyout(QWidget):
         bright_header.addWidget(self._make_field_label("Brightness"))
         bright_header.addStretch()
         self.brightness_val_label = QLabel("80%")
-        self.brightness_val_label.setStyleSheet("color: #374151; font-weight: 600; font-size: 9pt;")
+        self.brightness_val_label.setStyleSheet(f"color: {self.theme_tokens["text_secondary"]}; font-weight: 600; font-size: 9pt;")
         bright_header.addWidget(self.brightness_val_label)
         layout.addLayout(bright_header)
 
@@ -1236,7 +892,7 @@ class TrayFlyout(QWidget):
         if path:
             self.preview_file_path = path
             self.preview_label.setText(os.path.basename(path))
-            self.preview_label.setStyleSheet("color: #374151;")
+            self.preview_label.setStyleSheet(f"color: {self.theme_tokens["text_secondary"]};")
             
             pixmap = QPixmap(path)
             if not pixmap.isNull():
@@ -1293,7 +949,7 @@ class TrayFlyout(QWidget):
         if path:
             self.wallpaper_file_path = path
             self.wallpaper_label.setText(os.path.basename(path))
-            self.wallpaper_label.setStyleSheet("color: #374151;")
+            self.wallpaper_label.setStyleSheet(f"color: {self.theme_tokens["text_secondary"]};")
             
             pixmap = QPixmap(path)
             if not pixmap.isNull():
@@ -1592,7 +1248,7 @@ class TrayFlyout(QWidget):
         if connected:
             self._apply_device_screen_profile()
             self.status_label.setText("Connected")
-            self.status_label.setStyleSheet("color: #16a34a; font-size: 15px; font-weight: 600;")
+            self.status_label.setStyleSheet(f"color: {self.theme_tokens["success_text"]}; font-size: 15px; font-weight: 600;")
             self.instruction_label.setText(f"Communicating on {port}")
 
             # Show firmware version if available
@@ -1631,7 +1287,7 @@ class TrayFlyout(QWidget):
             self.preview_size.setEnabled(True)
             self.wallpaper_size.setEnabled(True)
             self.status_label.setText("Disconnected")
-            self.status_label.setStyleSheet("color: #64748b; font-size: 15px; font-weight: 600;")
+            self.status_label.setStyleSheet(f"color: {self.theme_tokens["text_muted"]}; font-size: 15px; font-weight: 600;")
             self.instruction_label.setText("Plug in device to get started.")
             self.firmware_label.setVisible(False)
             self.update_available_label.setVisible(False)
@@ -1653,7 +1309,22 @@ class TrayFlyout(QWidget):
             if is_manual:
                 self._rescan_ports()
 
-        self.adjustSize()
+        from PyQt6.QtCore import QTimer
+        QTimer.singleShot(20, self._adjust_window_size)
+
+    def _adjust_window_size(self):
+        # Allow the layout to calculate its required height
+        self.scroll_content.adjustSize()
+        req_height = self.scroll_content.sizeHint().height()
+        
+        screen = QGuiApplication.primaryScreen()
+        if screen:
+            max_height = int(screen.availableGeometry().height() * 0.8)
+        else:
+            max_height = 800
+            
+        target_height = min(req_height, max_height)
+        self.resize(self.width(), target_height)
 
     def _manual_connect(self):
         if self.device.connected:
@@ -1699,6 +1370,8 @@ class TrayFlyout(QWidget):
     def showEvent(self, event):
         super().showEvent(event)
         self._refresh_logs()
+        from PyQt6.QtCore import QTimer
+        QTimer.singleShot(20, self._adjust_window_size)
 
     # ── Window management ────────────────────────────────────────────────
 
@@ -1717,12 +1390,9 @@ class TrayFlyout(QWidget):
         self.toggle_visibility.emit()
 
     def show_window(self):
-        self.adjustSize()
-        if hasattr(self, 'scroll_content'):
-            # Calculate the ideal height to show all controls without scrolling
-            ideal_h = self.scroll_content.sizeHint().height() + 40
-            self.resize(self.width(), min(ideal_h, self.maximumHeight()))
-            
+        self._adjust_window_size()
+        
+        # Center on primary screen
         screen = QApplication.primaryScreen()
         geo = screen.availableGeometry()
         x = geo.x() + (geo.width() - self.width()) // 2

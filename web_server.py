@@ -9,8 +9,10 @@ import io
 from PIL import Image
 from typing import Optional
 
-from flask import Flask, jsonify, request, send_from_directory
+from flask import Flask, jsonify, request, send_from_directory, Response
 from flask_socketio import SocketIO
+
+from theme_support import get_web_theme_css, prefers_light_theme
 
 from device_manager import DeviceManager
 
@@ -104,6 +106,14 @@ def client_config():
 
 
 # ── REST API ─────────────────────────────────────────────────────────────
+
+@app.route("/api/theme.css")
+def api_theme_css():
+    """Dynamically serve CSS variables based on the centralized UI theme."""
+    # We could also accept an overrides parameter or client pref, but for now rely on OS theme.
+    is_light = prefers_light_theme()
+    css_content = get_web_theme_css(is_light)
+    return Response(css_content, mimetype="text/css")
 
 
 @app.route("/api/status")

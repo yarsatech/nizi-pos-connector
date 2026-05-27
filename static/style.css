@@ -12,33 +12,7 @@
     box-sizing: border-box;
 }
 
-:root {
-    --bg-primary: #0a0e17;
-    --bg-secondary: #111827;
-    --bg-card: rgba(17, 24, 39, 0.7);
-    --bg-card-hover: rgba(30, 41, 59, 0.8);
-    --bg-input: rgba(15, 23, 42, 0.8);
-    --border-color: rgba(239, 68, 68, 0.18);
-    --border-active: rgba(239, 68, 68, 0.45);
-    --text-primary: #f1f5f9;
-    --text-secondary: #94a3b8;
-    --text-muted: #64748b;
-    --accent: #ef4444;
-    --accent-bright: #f87171;
-    --accent-glow: rgba(239, 68, 68, 0.3);
-    --success: #10b981;
-    --success-bg: rgba(16, 185, 129, 0.1);
-    --danger: #ef4444;
-    --danger-bg: rgba(239, 68, 68, 0.1);
-    --warning: #f59e0b;
-    --warning-bg: rgba(245, 158, 11, 0.1);
-    --info: #3b82f6;
-    --info-bg: rgba(59, 130, 246, 0.1);
-    --radius: 12px;
-    --radius-sm: 8px;
-    --shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
-    --transition: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-}
+/* Variables are now injected dynamically via /api/theme.css */
 
 body {
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;

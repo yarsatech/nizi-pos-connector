@@ -245,15 +245,21 @@ class DeviceManager:
             response = self._serial.readline().decode("utf-8", errors="ignore").strip()
             if not response:
                 return None
-            fw = response.strip()
+            fw = response
             # Strip leading 'V'/'v' prefix
             if fw.lower().startswith("v"):
                 fw = fw[1:]
             # Strip any pre-release suffix (e.g. '-rc.2', '-beta.1')
             if "-" in fw:
                 fw = fw.split("-", 1)[0]
+            # Validate SemVer format (e.g. X.Y.Z)
+            import re
+            if not re.match(r"^\d+\.\d+\.\d+$", fw):
+                logger.warning(f"Invalid firmware ID format received: {fw!r}")
+                return None
+
             logger.info(f"Firmware ID: {fw!r}")
-            return fw if fw else None
+            return fw
         except Exception as exc:
             logger.debug(f"Firmware ID query failed: {exc}")
             return None

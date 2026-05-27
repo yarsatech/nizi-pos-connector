@@ -23,7 +23,8 @@ from ota.github import (
     normalize_github_repo,
     parse_update_info,
 )
-from theme_support import ota_theme_colors, prefers_light_theme
+from ui_components import ModernPromptDialog, ModernProgressDialog
+
 
 class OTALocalCancelled(Exception):
     """Raised when the user cancels an OTA download in the progress dialog."""
@@ -203,168 +204,26 @@ class UpdateManager:
 
         current_version = self.current_version
         latest_version = info.latest_version
-        is_light = prefers_light_theme()
-        colors = ota_theme_colors(is_light)
 
-        class UpdatePromptDialog(QDialog):
-            def __init__(self):
-                super().__init__(parent_widget)
-                self._accepted = False
-                self.setWindowTitle(UPDATE_WINDOW_TITLE)
-                self.setWindowModality(Qt.WindowModality.WindowModal)
-                self.setWindowFlags(
-                    Qt.WindowType.Dialog
-                    | Qt.WindowType.WindowTitleHint
-                    | Qt.WindowType.WindowCloseButtonHint
-                    | Qt.WindowType.WindowSystemMenuHint
-                    | Qt.WindowType.MSWindowsFixedSizeDialogHint
-                )
-                self.setMinimumWidth(460)
-                self.setMinimumHeight(200)
-
-                headline = QLabel("An update is available.")
-                headline.setStyleSheet(f"color:{colors['text']}; font-size: 13.5pt; font-weight: 800;")
-
-                informative = (
-                    f"Current: {current_version}\n"
-                    f"Latest:  {latest_version}\n\n"
-                    "Download and update now?"
-                )
-                info_lbl = QLabel(informative)
-                info_lbl.setWordWrap(True)
-                info_lbl.setStyleSheet(f"color:{colors['muted']}; font-size: 11pt; font-weight: 600;")
-
-                yes_btn = QPushButton("Yes")
-                yes_btn.setObjectName("yesBtn")
-                no_btn = QPushButton("No")
-                no_btn.setObjectName("noBtn")
-
-                def _accept_update():
-                    self._accepted = True
-                    self.accept()
-
-                yes_btn.clicked.connect(_accept_update)
-                no_btn.clicked.connect(self.reject)
-
-                btn_row = QHBoxLayout()
-                btn_row.setSpacing(16)
-                btn_row.addStretch(1)
-                btn_row.addWidget(yes_btn)
-                btn_row.addWidget(no_btn)
-                btn_row.addStretch(1)
-
-                root = QVBoxLayout(self)
-                root.setContentsMargins(18, 18, 18, 14)
-                root.setSpacing(10)
-                root.addWidget(headline)
-                root.addWidget(info_lbl)
-                root.addLayout(btn_row)
-
-                self.setStyleSheet(
-                    (
-                        "QDialog {"
-                        f"background-color: {colors['dialog_bg']};"
-                        f"color: {colors['text']};"
-                        f"border: 1px solid {colors['border']};"
-                        "border-radius: 10px;"
-                        "}"
-                        "QPushButton#yesBtn {"
-                        f"background-color: {colors['chunk']};"
-                        "color: #ffffff;"
-                        "border: 0px;"
-                        "border-radius: 10px;"
-                        "padding: 9px 26px;"
-                        "font-weight: 800;"
-                        "min-width: 120px;"
-                        "}"
-                        "QPushButton#noBtn {"
-                        f"background-color: {colors['secondary_bg']};"
-                        "color: #ffffff;"
-                        f"border: 1px solid {colors['border']};"
-                        "border-radius: 10px;"
-                        "padding: 9px 26px;"
-                        "font-weight: 800;"
-                        "min-width: 120px;"
-                        "}"
-                        "QPushButton:pressed {"
-                        "transform: translateY(1px);"
-                        "}"
-                    )
-                )
-                self.adjustSize()
-                self.setFixedSize(self.size())
-
-            def keyPressEvent(self, event):
-                if event.key() == Qt.Key.Key_Escape:
-                    self.reject()
-                    event.accept()
-                    return
-                super().keyPressEvent(event)
-
-            def closeEvent(self, event):
-                self._accepted = False
-                self.reject()
-                event.accept()
-
-        dlg = UpdatePromptDialog()
+        dlg = ModernPromptDialog(
+            parent=parent_widget,
+            title=UPDATE_WINDOW_TITLE,
+            headline_text="An update is available.",
+            info_text=f"Current: {current_version}\nLatest:  {latest_version}\n\nDownload and update now?",
+            min_width=460,
+            min_height=200
+        )
         dlg.exec()
 
-        if not dlg._accepted:
+        if not dlg.is_accepted:
             return False
 
-        progress = QProgressDialog("Preparing update...", "Cancel", 0, 0, parent_widget)
-        progress.setWindowTitle(UPDATE_WINDOW_TITLE)
-        progress.setWindowModality(Qt.WindowModality.WindowModal)
-        progress.setWindowFlags(
-            Qt.WindowType.Dialog
-            | Qt.WindowType.WindowTitleHint
-            | Qt.WindowType.WindowCloseButtonHint
-            | Qt.WindowType.WindowSystemMenuHint
-            | Qt.WindowType.MSWindowsFixedSizeDialogHint
-        )
-        progress.setMinimumDuration(0)
-        progress.setAutoClose(True)
-        progress.setAutoReset(False)
-        progress.setMinimumWidth(480)
-        progress.setMinimumHeight(210)
-        progress.setStyleSheet(
-            f"""
-QProgressDialog {{
-  background-color: {colors['progress_bg']};
-  color: {colors['text']};
-  border: 1px solid {colors['border']};
-  border-radius: 14px;
-  padding: 22px;
-}}
-QLabel {{
-  color: {colors['muted']};
-  font-size: 14pt;
-  font-weight: 800;
-  margin-bottom: 10px;
-}}
-QPushButton {{
-  border-radius: 12px;
-  padding: 10px 26px;
-  font-weight: 700;
-  color: {colors['text']};
-  border: 1px solid {colors['cancel_border']};
-  background-color: {colors['cancel_bg']};
-}}
-QProgressBar {{
-  height: 16px;
-  border-radius: 8px;
-  background-color: {colors['progress_bar_bg']};
-  border: 1px solid {colors['border']};
-  margin: 8px 0px 18px 0px;
-  qproperty-alignment: AlignCenter;
-  font-size: 12pt;
-  qproperty-textVisible: false;
-}}
-QProgressBar::chunk {{
-  border-radius: 6px;
-  background-color: {colors['chunk']};
-}}
-"""
+        progress = ModernProgressDialog(
+            parent=parent_widget,
+            title=UPDATE_WINDOW_TITLE,
+            label_text="Preparing update...",
+            min_width=480,
+            min_height=210
         )
         progress.show()
 

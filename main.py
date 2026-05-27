@@ -95,111 +95,17 @@ def main():
     def on_quit():
         from PyQt6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton
         from PyQt6.QtCore import Qt
-        from theme_support import ota_theme_colors, prefers_light_theme
+        from ui_components import ModernPromptDialog
 
-        is_light = prefers_light_theme()
-        colors = ota_theme_colors(is_light)
-
-        class ExitPromptDialog(QDialog):
-            def __init__(self):
-                super().__init__(None)
-                self._accepted = False
-                self.setWindowTitle("Confirm Exit")
-                self.setWindowModality(Qt.WindowModality.WindowModal)
-                self.setWindowFlags(
-                    Qt.WindowType.Dialog
-                    | Qt.WindowType.WindowTitleHint
-                    | Qt.WindowType.WindowCloseButtonHint
-                    | Qt.WindowType.WindowSystemMenuHint
-                    | Qt.WindowType.MSWindowsFixedSizeDialogHint
-                )
-                self.setMinimumWidth(420)
-                self.setMinimumHeight(160)
-
-                headline = QLabel("Confirm Exit")
-                headline.setStyleSheet(f"color:{colors['text']}; font-size: 13.5pt; font-weight: 800;")
-
-                informative = f"Are you sure you want to quit {APP_NAME}?"
-                info_lbl = QLabel(informative)
-                info_lbl.setWordWrap(True)
-                info_lbl.setStyleSheet(f"color:{colors['muted']}; font-size: 11pt; font-weight: 600;")
-
-                yes_btn = QPushButton("Yes")
-                yes_btn.setObjectName("yesBtn")
-                no_btn = QPushButton("No")
-                no_btn.setObjectName("noBtn")
-
-                def _accept_exit():
-                    self._accepted = True
-                    self.accept()
-
-                yes_btn.clicked.connect(_accept_exit)
-                no_btn.clicked.connect(self.reject)
-
-                btn_row = QHBoxLayout()
-                btn_row.setSpacing(16)
-                btn_row.addStretch(1)
-                btn_row.addWidget(yes_btn)
-                btn_row.addWidget(no_btn)
-                btn_row.addStretch(1)
-
-                root = QVBoxLayout(self)
-                root.setContentsMargins(18, 18, 18, 14)
-                root.setSpacing(10)
-                root.addWidget(headline)
-                root.addWidget(info_lbl)
-                root.addLayout(btn_row)
-
-                self.setStyleSheet(
-                    (
-                        "QDialog {"
-                        f"background-color: {colors['dialog_bg']};"
-                        f"color: {colors['text']};"
-                        f"border: 1px solid {colors['border']};"
-                        "border-radius: 10px;"
-                        "}"
-                        "QPushButton#yesBtn {"
-                        f"background-color: {colors['chunk']};"
-                        "color: #ffffff;"
-                        "border: 0px;"
-                        "border-radius: 10px;"
-                        "padding: 9px 26px;"
-                        "font-weight: 800;"
-                        "min-width: 120px;"
-                        "}"
-                        "QPushButton#noBtn {"
-                        f"background-color: {colors['secondary_bg']};"
-                        "color: #ffffff;"
-                        f"border: 1px solid {colors['border']};"
-                        "border-radius: 10px;"
-                        "padding: 9px 26px;"
-                        "font-weight: 800;"
-                        "min-width: 120px;"
-                        "}"
-                        "QPushButton:pressed {"
-                        "transform: translateY(1px);"
-                        "}"
-                    )
-                )
-                self.adjustSize()
-                self.setFixedSize(self.size())
-
-            def keyPressEvent(self, event):
-                if event.key() == Qt.Key.Key_Escape:
-                    self.reject()
-                    event.accept()
-                    return
-                super().keyPressEvent(event)
-
-            def closeEvent(self, event):
-                self._accepted = False
-                self.reject()
-                event.accept()
-
-        dlg = ExitPromptDialog()
+        dlg = ModernPromptDialog(
+            parent=None,
+            title="Confirm Exit",
+            headline_text="Confirm Exit",
+            info_text=f"Are you sure you want to quit {APP_NAME}?"
+        )
         dlg.exec()
         
-        if dlg._accepted:
+        if dlg.is_accepted:
             logger.info("Shutting down …")
             device.disconnect()
             os._exit(0)  # Ensure all threads are terminated immediately
