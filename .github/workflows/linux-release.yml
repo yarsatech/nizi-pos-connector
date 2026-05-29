@@ -8,46 +8,55 @@ on:
 permissions:
   contents: write
 
+env:
+  PYTHON_VERSION: "3.14"
+
 jobs:
   build-linux:
     runs-on: ubuntu-22.04
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Python
+      - name: Setup Python ${{ env.PYTHON_VERSION }}
         uses: actions/setup-python@v5
         with:
-            python-version: "3.11"
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: "pip"                          # cache pip downloads between runs
 
-      - name: Install dependencies
+      - name: Install system dependencies
+        shell: bash
         run: |
-          sudo apt-get update
-          sudo apt-get install -y \
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
             binutils imagemagick libfuse2 \
             squashfs-tools patchelf desktop-file-utils \
             libgdk-pixbuf2.0-dev zsync dpkg-dev \
             rpm zstd
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
+
+      - name: Install Python dependencies
         shell: bash
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt       # pyinstaller is listed here
 
       - name: Prepare build metadata (config.json)
         shell: bash
         env:
-          VERSION: ${{ github.ref_name }}
+          TAG: ${{ github.ref_name }}
           REPO: ${{ github.repository }}
         run: |
-          VERSION_STRIPPED="${VERSION#v}"
-          export VERSION_STRIPPED
+          VERSION="${TAG#v}"
+          echo "APP_VERSION_STRIPPED=$VERSION" >> "$GITHUB_ENV"
+
           python - <<'PY'
-          import json
-          import os
+          import json, os
           from pathlib import Path
 
           path = Path("config.json")
           meta = json.loads(path.read_text(encoding="utf-8"))
-          meta["version"] = os.environ["VERSION_STRIPPED"]
+          meta["version"]     = os.environ["VERSION"]
           meta["github_repo"] = os.environ["REPO"]
           path.write_text(
               json.dumps(meta, separators=(",", ":"), ensure_ascii=False),
@@ -55,60 +64,55 @@ jobs:
           )
           PY
 
-      - name: Build PyInstaller (main app + ota-updater)
+      - name: Build with PyInstaller (main app + ota-updater)
         shell: bash
         run: |
           rm -rf dist build
           pyinstaller build.spec
 
-      - name: Build Linux Packages (.deb, .rpm, .tar.zst)
+      - name: Build Linux packages (.deb, .rpm, .tar.zst)
         shell: bash
-        run: |
-          version="${GITHUB_REF_NAME#v}"
-          chmod +x build_linux.sh
-          APP_VERSION="$version" ./build_linux.sh all
         env:
           GITHUB_REF_NAME: ${{ github.ref_name }}
+        run: |
+          chmod +x build_linux.sh
+          APP_VERSION="${APP_VERSION_STRIPPED}" ./build_linux.sh all
 
       - name: Create OTA ZIP (exclude ota-updater)
         id: ota_zip
         shell: bash
         run: |
-          VERSION_STRIPPED="${GITHUB_REF_NAME#v}"
-          ZIP_NAME="NiziPOSConnector-linux-ota-${VERSION_STRIPPED}.zip"
-          STAGING="${RUNNER_TEMP}/nizi_pos_connector_ota_staging"
+          VERSION="${APP_VERSION_STRIPPED}"
+          ZIP_NAME="NiziPOSConnector-linux-ota-${VERSION}.zip"
+          STAGING="${RUNNER_TEMP}/nizi_pos_ota_staging"
 
           rm -rf "$STAGING"
           mkdir -p "$STAGING"
-
           cp -r dist/NiziPOSConnector/* "$STAGING"/
           rm -f "$STAGING/ota-updater"
 
-          export VERSION_STRIPPED ZIP_NAME STAGING
+          export VERSION ZIP_NAME STAGING
 
           python - <<'PY'
-          import hashlib
-          import json
-          import os
-          import zipfile
+          import hashlib, json, os, zipfile
           from pathlib import Path
 
-          staging = Path(os.environ["STAGING"])
+          staging  = Path(os.environ["STAGING"])
           zip_name = os.environ["ZIP_NAME"]
+          version  = os.environ["VERSION"]
 
           with zipfile.ZipFile(zip_name, "w", compression=zipfile.ZIP_DEFLATED) as zf:
               for p in staging.rglob("*"):
                   if p.is_dir():
                       continue
-                  rel = p.relative_to(staging)
-                  zf.write(p, rel.as_posix())
+                  zf.write(p, p.relative_to(staging).as_posix())
 
           data = Path(zip_name).read_bytes()
-          sha = hashlib.sha256(data).hexdigest()
+          sha  = hashlib.sha256(data).hexdigest()
 
           manifest = {
-              "version": os.environ["VERSION_STRIPPED"],
-              "sha256": sha,
+              "version":        version,
+              "sha256":         sha,
               "zip_asset_name": zip_name,
           }
           Path("manifest-linux.json").write_text(
@@ -116,9 +120,11 @@ jobs:
               encoding="utf-8",
           )
 
-          print(f"zipName={zip_name}")
-          print(f"zipPath={Path(zip_name).resolve()}")
-          print(f"sha256={sha}")
+          out = os.environ["GITHUB_OUTPUT"]
+          with open(out, "a") as f:
+              f.write(f"zipName={zip_name}\n")
+              f.write(f"zipPath={Path(zip_name).resolve()}\n")
+              f.write(f"sha256={sha}\n")
           PY
 
       - name: Publish GitHub Release assets
@@ -126,7 +132,27 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Create release if it doesn't exist
-          gh release view ${{ github.ref_name }} || gh release create ${{ github.ref_name }} --title ${{ github.ref_name }} --notes "Release ${{ github.ref_name }}"
-          # Upload assets
-          gh release upload ${{ github.ref_name }} manifest-linux.json NiziPOSConnector-linux-ota-*.zip dist/*.deb dist/*.rpm dist/*.zst --clobber
+          TAG="${{ github.ref_name }}"
+          VERSION="${APP_VERSION_STRIPPED}"
+
+          NOTES=$(cat <<EOF
+          ## Nizi POS Connector ${TAG}
+
+          ### Assets
+          - \`NiziPOSConnector-${VERSION}-amd64.deb\` — Debian/Ubuntu package
+          - \`NiziPOSConnector-${VERSION}-x86_64.rpm\` — Red Hat/Fedora package
+          - \`NiziPOSConnector-linux-ota-${VERSION}.zip\` — OTA update bundle (used by the app's auto-updater)
+          - \`manifest-linux.json\` — OTA manifest (SHA-256 + asset name)
+          EOF
+          )
+
+          # Create the release if it does not exist yet (Linux job may run in parallel with Windows)
+          gh release view "$TAG" 2>/dev/null || \
+            gh release create "$TAG" --title "Nizi POS Connector $TAG" --notes "$NOTES"
+
+          # Upload all Linux assets (--clobber is safe if this job re-runs)
+          gh release upload "$TAG" \
+            manifest-linux.json \
+            "NiziPOSConnector-linux-ota-${VERSION}.zip" \
+            dist/*.deb dist/*.rpm dist/*.zst \
+            --clobber

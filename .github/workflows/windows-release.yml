@@ -8,37 +8,45 @@ on:
 permissions:
   contents: write
 
+env:
+  APP_VERSION: ${{ github.ref_name }}          # e.g. "v2.1.0"
+  APP_VERSION_STRIPPED: ""                     # set by strip-version step
+  PYTHON_VERSION: "3.14"
+
 jobs:
   build-windows:
     runs-on: windows-latest
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Python
+      - name: Setup Python ${{ env.PYTHON_VERSION }}
         uses: actions/setup-python@v5
         with:
-          python-version: "3.10"
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: "pip"                          # cache pip downloads between runs
 
       - name: Install dependencies
+        shell: pwsh
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install pyinstaller
-        shell: pwsh
+          pip install -r requirements.txt       # pyinstaller is already listed here
 
       - name: Prepare build metadata (config.json)
         shell: pwsh
         run: |
-          $version = $env:GITHUB_REF_NAME -replace '^v',''
-          $repo = $env:GITHUB_REPOSITORY
-          $path = "config.json"
-          $meta = Get-Content -Path $path -Raw -Encoding UTF8 | ConvertFrom-Json
-          $meta.version = $version
+          $version = "${{ github.ref_name }}" -replace '^v',''
+          $repo    = "${{ github.repository }}"
+          $path    = "config.json"
+          $meta    = Get-Content -Path $path -Raw -Encoding UTF8 | ConvertFrom-Json
+          $meta.version     = $version
           $meta.github_repo = $repo
           ($meta | ConvertTo-Json -Compress -Depth 10) | Set-Content -Path $path -Encoding UTF8
+          # Expose stripped version for downstream steps
+          "APP_VERSION_STRIPPED=$version" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
-      - name: Build PyInstaller (main app + ota-updater)
+      - name: Build with PyInstaller (main app + ota-updater)
         shell: pwsh
         run: |
           Remove-Item -Recurse -Force dist, build -ErrorAction SilentlyContinue
@@ -48,67 +56,77 @@ jobs:
         id: ota_zip
         shell: pwsh
         run: |
-          $version = $env:GITHUB_REF_NAME -replace '^v',''
+          $version = $env:APP_VERSION_STRIPPED
           $zipName = "NiziPOSConnector-win-ota-$version.zip"
 
-          $staging = Join-Path $env:RUNNER_TEMP "nizi_pos_connector_ota_staging"
+          $staging = Join-Path $env:RUNNER_TEMP "nizi_pos_ota_staging"
           Remove-Item -Recurse -Force $staging -ErrorAction SilentlyContinue
           New-Item -ItemType Directory -Force -Path $staging | Out-Null
 
           Copy-Item -Path "dist\NiziPOSConnector\*" -Destination $staging -Recurse -Force
           Remove-Item -Force -ErrorAction SilentlyContinue (Join-Path $staging "ota-updater.exe")
 
-          # Zip contents at the zip root (main .exe, static/, assets/, ...)
+          # Zip contents at the archive root (NiziPOSConnector.exe, static/, assets/, ...)
           Compress-Archive -Path (Join-Path $staging "*") -DestinationPath $zipName -Force
 
           $zipPath = (Resolve-Path $zipName).Path
-          $sha = (Get-FileHash -Algorithm SHA256 $zipPath).Hash
+          $sha     = (Get-FileHash -Algorithm SHA256 $zipPath).Hash.ToLower()
 
-          $manifest = @{
-            version = $version
-            sha256 = $sha
+          $manifest = [ordered]@{
+            version        = $version
+            sha256         = $sha
             zip_asset_name = $zipName
           }
           $manifest | ConvertTo-Json -Depth 5 -Compress | Set-Content "manifest-win.json" -Encoding UTF8
 
-          Write-Output "zipName=$zipName"
-          Write-Output "zipPath=$zipPath"
-          Write-Output "sha256=$sha"
-        env:
-          GITHUB_REF_NAME: ${{ github.ref_name }}
-  
+          # Export step outputs the modern way
+          "zipName=$zipName"   | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "zipPath=$zipPath"   | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "sha256=$sha"        | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
       - name: Build Inno Setup installer
         shell: pwsh
         run: |
-          # Install Inno Setup
-          choco install innosetup -y --no-progress
-
-          $isccPath = "iscc"
-          $defaultIscc = "C:\Program Files (x86)\Inno Setup 6\iscc.exe"
-          if (Test-Path $defaultIscc) {
-            $isccPath = $defaultIscc
+          # Inno Setup 6 ships pre-installed on windows-latest runners.
+          # Fall back to the chocolatey path if the standard location is missing.
+          $iscc = "C:\Program Files (x86)\Inno Setup 6\iscc.exe"
+          if (-not (Test-Path $iscc)) {
+            choco install innosetup -y --no-progress
+            $iscc = "iscc"
           }
 
-          if ($isccPath -eq "iscc" -and -not (Get-Command iscc -ErrorAction SilentlyContinue)) {
-            Write-Error "Inno Setup compiler (iscc) not found."
-            exit 1
-          }
-
-          $version = $env:GITHUB_REF_NAME -replace '^v',''
-          $arch = "x64"
-          & $isccPath "/DAppVer=$version" "/DAppArch=$arch" "win_setup.iss"
+          $version = $env:APP_VERSION_STRIPPED
+          & $iscc "/DAppVer=$version" "/DAppArch=x64" "win_setup.iss"
           if ($LASTEXITCODE -ne 0) {
-            Write-Error "Inno Setup installer compilation failed with exit code $LASTEXITCODE"
+            Write-Error "Inno Setup compilation failed (exit $LASTEXITCODE)"
             exit 1
           }
 
       - name: Publish GitHub Release assets
-        shell: bash
+        shell: pwsh
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Create release if it doesn't exist
-          gh release view ${{ github.ref_name }} || gh release create ${{ github.ref_name }} --title ${{ github.ref_name }} --notes "Release ${{ github.ref_name }}"
-          # Upload assets
-          gh release upload ${{ github.ref_name }} manifest-win.json NiziPOSConnector-win-ota-*.zip dist/NiziPOSConnector-Installer-*.exe --clobber
+          $tag     = "${{ github.ref_name }}"
+          $version = $env:APP_VERSION_STRIPPED
+          $notes   = @"
+          ## Nizi POS Connector $tag
 
+          ### Assets
+          - ``NiziPOSConnector-Installer-$version-x64.exe`` — Windows installer (recommended)
+          - ``NiziPOSConnector-win-ota-$version.zip`` — OTA update bundle (used by the app's auto-updater)
+          - ``manifest-win.json`` — OTA manifest (SHA-256 + asset name)
+          "@
+
+          # Create the release if it does not exist yet
+          gh release view $tag 2>$null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create $tag --title "Nizi POS Connector $tag" --notes $notes
+          }
+
+          # Upload all Windows assets (--clobber overwrites if re-running the job)
+          gh release upload $tag `
+            manifest-win.json `
+            "NiziPOSConnector-win-ota-$version.zip" `
+            (Get-Item "dist\NiziPOSConnector-Installer-*.exe").FullName `
+            --clobber
