@@ -7,7 +7,7 @@ import webbrowser
 import os
 from PyQt6.QtWidgets import QSystemTrayIcon, QMenu
 from PyQt6.QtGui import QIcon, QAction, QCursor
-from PyQt6.QtCore import QObject
+from PyQt6.QtCore import QObject, pyqtSignal, pyqtSlot
 from PIL import Image, ImageDraw
 import io
 
@@ -47,6 +47,7 @@ def _create_qicon(connected: bool) -> QIcon:
 
 class TrayApp(QObject):
     """System tray shell for the background connector service (PyQt6)."""
+    status_changed_signal = pyqtSignal(bool, str)
 
     def __init__(self, device_manager, ui_app=None, on_quit=None):
         super().__init__()
@@ -65,16 +66,23 @@ class TrayApp(QObject):
         
         self._tray_icon.show()
 
+        # Connect status change signal to run on main thread
+        self.status_changed_signal.connect(self._on_status_changed_main_thread)
+
         # Listen for device status changes
         original_callback = device_manager._on_status_change
 
         def _status_wrapper(connected, port):
-            self._connected = connected
-            self._update_icon()
+            self.status_changed_signal.emit(connected, port or "")
             if original_callback:
                 original_callback(connected, port)
 
         device_manager.set_status_callback(_status_wrapper)
+
+    @pyqtSlot(bool, str)
+    def _on_status_changed_main_thread(self, connected: bool, port: str):
+        self._connected = connected
+        self._update_icon()
 
     def _update_icon(self):
         """Update the tray icon image to reflect connection state."""

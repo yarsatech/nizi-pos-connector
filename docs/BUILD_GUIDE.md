@@ -23,6 +23,20 @@ Repo-root **`config.json`** (distribution metadata) holds app name, author, vers
 
 For **Inno Setup**, keep this **`config.json`** as **single-line JSON** (or ensure the first line contains `"version":"…"`) so the compiler can read `AppVersion`.
 
+## Running Tests
+
+Verify the codebase functionality before packaging:
+
+```bash
+# Run all tests using unittest discovery
+python -m unittest discover -s tests -p "test_*.py" -v
+
+# Or run specific test modules
+python tests/test_device_manager.py
+python tests/test_config.py
+python tests/test_firmware_api.py
+```
+
 ## Build
 
 ```bash

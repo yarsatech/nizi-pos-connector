@@ -277,7 +277,7 @@ def api_timeout():
             return jsonify({"success": False, "error": "Timeout values must be between 1 and 3600."}), 400
     except (ValueError, TypeError):
         return jsonify({"success": False, "error": "Invalid timeout value type."}), 400
-    result = device.set_timeout(qr_sec, pf_sec)
+    result = device.set_timeout(qr_sec * 1000, pf_sec * 1000)
     return jsonify(result)
 
 

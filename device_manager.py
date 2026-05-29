@@ -434,9 +434,9 @@ class DeviceManager:
 
     # ── Timeout & Buzzer ────────────────────────────────────────────────
 
-    def set_timeout(self, qr_sec: int = 300, pf_sec: int = 20):
-        """Set screen timeouts: QR display and Pass/Fail display (in seconds)."""
-        return self.send_command(f"TIMEOUT**{qr_sec}**{pf_sec}")
+    def set_timeout(self, qr_ms: int = 300000, pf_ms: int = 20000):
+        """Set screen timeouts: QR display and Pass/Fail display (in milliseconds)."""
+        return self.send_command(f"TIMEOUT**{qr_ms}**{pf_ms}")
 
     def activate_buzzer(self, enabled: int = 1):
         """Enable (1) or disable (0) the buzzer. B30 has buzzer disabled by default."""

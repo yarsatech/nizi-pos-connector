@@ -549,15 +549,15 @@ class TrayFlyout(QWidget):
         self.idle_fields_layout.addWidget(self.idle_img1_label)
         self.idle_fields_layout.addWidget(self.idle_img1)
 
-        self.idle_sleep_ms_label = self._make_field_label("Sleep Duration (ms) [Min: 30000]")
-        self.idle_sleep_ms = QLineEdit("30000")
-        self.idle_fields_layout.addWidget(self.idle_sleep_ms_label)
-        self.idle_fields_layout.addWidget(self.idle_sleep_ms)
+        self.idle_sleep_sec_label = self._make_field_label("Sleep Duration (seconds) [Min: 30]")
+        self.idle_sleep_sec = QLineEdit("30")
+        self.idle_fields_layout.addWidget(self.idle_sleep_sec_label)
+        self.idle_fields_layout.addWidget(self.idle_sleep_sec)
 
-        self.idle_wake_ms_label = self._make_field_label("Wake Duration (ms)")
-        self.idle_wake_ms = QLineEdit("120000")
-        self.idle_fields_layout.addWidget(self.idle_wake_ms_label)
-        self.idle_fields_layout.addWidget(self.idle_wake_ms)
+        self.idle_wake_sec_label = self._make_field_label("Wake Duration (seconds)")
+        self.idle_wake_sec = QLineEdit("120")
+        self.idle_fields_layout.addWidget(self.idle_wake_sec_label)
+        self.idle_fields_layout.addWidget(self.idle_wake_sec)
 
         self.idle_img2_label = self._make_field_label("Image 2 Name")
         self.idle_img2 = QComboBox()
@@ -567,15 +567,15 @@ class TrayFlyout(QWidget):
         self.idle_fields_layout.addWidget(self.idle_img2_label)
         self.idle_fields_layout.addWidget(self.idle_img2)
 
-        self.idle_time1_label = self._make_field_label("Image 1 Duration (ms)")
-        self.idle_time1 = QLineEdit("60000")
-        self.idle_fields_layout.addWidget(self.idle_time1_label)
-        self.idle_fields_layout.addWidget(self.idle_time1)
+        self.idle_time1_sec_label = self._make_field_label("Image 1 Duration (seconds)")
+        self.idle_time1_sec = QLineEdit("60")
+        self.idle_fields_layout.addWidget(self.idle_time1_sec_label)
+        self.idle_fields_layout.addWidget(self.idle_time1_sec)
 
-        self.idle_time2_label = self._make_field_label("Image 2 Duration (ms)")
-        self.idle_time2 = QLineEdit("60000")
-        self.idle_fields_layout.addWidget(self.idle_time2_label)
-        self.idle_fields_layout.addWidget(self.idle_time2)
+        self.idle_time2_sec_label = self._make_field_label("Image 2 Duration (seconds)")
+        self.idle_time2_sec = QLineEdit("60")
+        self.idle_fields_layout.addWidget(self.idle_time2_sec_label)
+        self.idle_fields_layout.addWidget(self.idle_time2_sec)
 
         layout.addWidget(self.idle_fields_container)
 
@@ -804,10 +804,10 @@ class TrayFlyout(QWidget):
         layout.addLayout(row1)
 
         row2 = QHBoxLayout()
-        self.btn_reset = QPushButton("🔄 RESET")
-        self.btn_reset.setObjectName("warningBtn")
-        self.btn_reset.clicked.connect(lambda: self.device.send_command("RESET"))
-        row2.addWidget(self.btn_reset)
+        self.btn_restart = QPushButton("🔄 RESTART")
+        self.btn_restart.setObjectName("warningBtn")
+        self.btn_restart.clicked.connect(lambda: self.device.send_command("RESET"))
+        row2.addWidget(self.btn_restart)
 
         self.btn_format = QPushButton("🗑 FORMAT")
         self.btn_format.setObjectName("dangerBtn")
@@ -1026,18 +1026,18 @@ class TrayFlyout(QWidget):
         self.idle_img1.setVisible(True)
 
         # Sleep/Wake durations — only SLEEP_WAKE and SLEEP
-        self.idle_sleep_ms_label.setVisible(is_sleep_wake or is_sleep)
-        self.idle_sleep_ms.setVisible(is_sleep_wake or is_sleep)
-        self.idle_wake_ms_label.setVisible(is_sleep_wake)
-        self.idle_wake_ms.setVisible(is_sleep_wake)
+        self.idle_sleep_sec_label.setVisible(is_sleep_wake or is_sleep)
+        self.idle_sleep_sec.setVisible(is_sleep_wake or is_sleep)
+        self.idle_wake_sec_label.setVisible(is_sleep_wake)
+        self.idle_wake_sec.setVisible(is_sleep_wake)
 
         # Second image + durations — only CYCLE
         self.idle_img2_label.setVisible(is_cycle)
         self.idle_img2.setVisible(is_cycle)
-        self.idle_time1_label.setVisible(is_cycle)
-        self.idle_time1.setVisible(is_cycle)
-        self.idle_time2_label.setVisible(is_cycle)
-        self.idle_time2.setVisible(is_cycle)
+        self.idle_time1_sec_label.setVisible(is_cycle)
+        self.idle_time1_sec.setVisible(is_cycle)
+        self.idle_time2_sec_label.setVisible(is_cycle)
+        self.idle_time2_sec.setVisible(is_cycle)
 
         QApplication.processEvents()
         if hasattr(self, 'scroll_content'):
@@ -1053,33 +1053,33 @@ class TrayFlyout(QWidget):
 
         if index == 0:  # SLEEP_WAKE
             try:
-                wake_ms = int(self.idle_wake_ms.text())
-                sleep_ms = int(self.idle_sleep_ms.text())
+                wake_sec = int(self.idle_wake_sec.text())
+                sleep_sec = int(self.idle_sleep_sec.text())
             except ValueError:
-                wake_ms, sleep_ms = 120000, 30000
-            if sleep_ms < 30000:
-                sleep_ms = 30000
-                self.idle_sleep_ms.setText(str(sleep_ms))
-            self.device.set_idle_sleep_wake(img1, sleep_ms, wake_ms)
+                wake_sec, sleep_sec = 120, 30
+            if sleep_sec < 30:
+                sleep_sec = 30
+                self.idle_sleep_sec.setText(str(sleep_sec))
+            self.device.set_idle_sleep_wake(img1, sleep_sec * 1000, wake_sec * 1000)
         elif index == 1:  # SINGLE
             self.device.set_idle_single(img1)
         elif index == 2:  # CYCLE
             img2 = self.idle_img2.currentText()
             try:
-                time1 = int(self.idle_time1.text())
-                time2 = int(self.idle_time2.text())
+                time1_sec = int(self.idle_time1_sec.text())
+                time2_sec = int(self.idle_time2_sec.text())
             except ValueError:
-                time1, time2 = 60000, 60000
-            self.device.set_idle_cycle(img1, time1, img2, time2)
+                time1_sec, time2_sec = 60, 60
+            self.device.set_idle_cycle(img1, time1_sec * 1000, img2, time2_sec * 1000)
         elif index == 3:  # SLEEP
             try:
-                sleep_ms = int(self.idle_sleep_ms.text())
+                sleep_sec = int(self.idle_sleep_sec.text())
             except ValueError:
-                sleep_ms = 30000
-            if sleep_ms < 30000:
-                sleep_ms = 30000
-                self.idle_sleep_ms.setText(str(sleep_ms))
-            self.device.set_idle_sleep(img1, sleep_ms)
+                sleep_sec = 30
+            if sleep_sec < 30:
+                sleep_sec = 30
+                self.idle_sleep_sec.setText(str(sleep_sec))
+            self.device.set_idle_sleep(img1, sleep_sec * 1000)
         self._show_feedback(self.idle_mode_feedback, "✓ Command sent")
 
     def _send_timeout(self):
@@ -1089,7 +1089,7 @@ class TrayFlyout(QWidget):
             pf_sec = int(self.timeout_pf.text())
         except ValueError:
             qr_sec, pf_sec = 300, 20
-        self.device.set_timeout(qr_sec, pf_sec)
+        self.device.set_timeout(qr_sec * 1000, pf_sec * 1000)
         self._show_feedback(self.timeout_feedback, "✓ Command sent")
 
     def _send_buzzer_on(self):
