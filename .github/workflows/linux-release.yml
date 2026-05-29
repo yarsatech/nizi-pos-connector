@@ -47,7 +47,7 @@ jobs:
           TAG: ${{ github.ref_name }}
           REPO: ${{ github.repository }}
         run: |
-          VERSION="${TAG#v}"
+          export VERSION="${TAG#v}"
           echo "APP_VERSION_STRIPPED=$VERSION" >> "$GITHUB_ENV"
 
           python - <<'PY'
