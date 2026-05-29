@@ -30,6 +30,56 @@ class OTALocalCancelled(Exception):
     """Raised when the user cancels an OTA download in the progress dialog."""
 
 
+from PyQt6.QtCore import QThread, pyqtSignal
+
+class DownloadWorker(QThread):
+    progress_updated = pyqtSignal(int, int)  # written, total
+    finished = pyqtSignal(bool, str)         # success, error_msg
+
+    def __init__(self, url: str, dest_path: Path, timeout_s: int):
+        super().__init__()
+        self.url = url
+        self.dest_path = dest_path
+        self.timeout_s = timeout_s
+        self.is_cancelled = False
+
+    def run(self):
+        try:
+            headers = {"User-Agent": OTA_HTTP_USER_AGENT}
+            timeout = (10, max(60, int(self.timeout_s) * 6))
+            written = 0
+            total = None
+
+            with requests.get(self.url, headers=headers, stream=True, timeout=timeout) as r:
+                r.raise_for_status()
+                try:
+                    cl = r.headers.get("Content-Length")
+                    if cl:
+                        total = int(cl)
+                except Exception:
+                    total = None
+
+                self.dest_path.parent.mkdir(parents=True, exist_ok=True)
+                with open(self.dest_path, "wb") as f:
+                    for chunk in r.iter_content(chunk_size=1024 * 64):
+                        if self.is_cancelled:
+                            raise OTALocalCancelled()
+                        if not chunk:
+                            continue
+                        f.write(chunk)
+                        written += len(chunk)
+                        self.progress_updated.emit(written, total or 0)
+
+            self.finished.emit(True, "")
+        except OTALocalCancelled:
+            self.finished.emit(False, "Cancelled")
+        except Exception as e:
+            self.finished.emit(False, str(e))
+
+    def cancel(self):
+        self.is_cancelled = True
+
+
 class UpdateManager:
     """
     GitHub Releases lookup, manifest + ZIP download with sha256 check,
@@ -91,50 +141,6 @@ class UpdateManager:
                 f.write(msg.rstrip() + "\n")
         except Exception:
             pass
-
-    def _download_to_file(
-        self,
-        url: str,
-        dest_path: Path,
-        *,
-        cancel_check=None,
-        progress_dialog=None,
-        label_prefix: Optional[str] = None,
-    ):
-        headers = {"User-Agent": OTA_HTTP_USER_AGENT}
-        timeout = (10, max(60, int(self.timeout_s) * 6))
-        written = 0
-        total = None
-        with requests.get(url, headers=headers, stream=True, timeout=timeout) as r:
-            r.raise_for_status()
-            try:
-                cl = r.headers.get("Content-Length")
-                if cl:
-                    total = int(cl)
-            except Exception:
-                total = None
-
-            dest_path.parent.mkdir(parents=True, exist_ok=True)
-            with open(dest_path, "wb") as f:
-                if progress_dialog is not None and total:
-                    progress_dialog.setRange(0, total)
-                    progress_dialog.setValue(0)
-                elif progress_dialog is not None:
-                    progress_dialog.setRange(0, 0)
-
-                for chunk in r.iter_content(chunk_size=1024 * 256):
-                    if not chunk:
-                        continue
-                    if cancel_check and cancel_check():
-                        raise OTALocalCancelled()
-                    f.write(chunk)
-                    written += len(chunk)
-
-                    if progress_dialog is not None and total:
-                        progress_dialog.setValue(min(written, total))
-                        if label_prefix:
-                            percent = int((written * 100) / total)
-                            progress_dialog.setLabelText(f"{label_prefix} {percent}%")
 
     def _sha256_file(self, path: Path) -> str:
         h = hashlib.sha256()
@@ -227,28 +233,6 @@ class UpdateManager:
         )
         progress.show()
 
-        cancelled = {"value": False}
-
-        def _cancel_check() -> bool:
-            return cancelled["value"] or progress.wasCanceled()
-
-        def _on_cancel():
-            cancelled["value"] = True
-            progress.setLabelText("Cancelling...")
-
-        try:
-            progress.canceled.connect(_on_cancel)
-        except Exception:
-            pass
-
-        try:
-            def _on_finished():
-                cancelled["value"] = progress.wasCanceled()
-
-            progress.finished.connect(_on_finished)
-        except Exception:
-            pass
-
         try:
             tmp_dir = Path(tempfile.gettempdir()) / OTA_TEMP_DIR_NAME
             zip_path = tmp_dir / f"update_{info.latest_version}.zip"
@@ -262,17 +246,52 @@ class UpdateManager:
             progress.setRange(0, 0)
             self._write_log(f"[download] url={info.zip_url}")
             QApplication.processEvents()
-            self._download_to_file(
-                info.zip_url,
-                zip_path,
-                cancel_check=_cancel_check,
-                progress_dialog=progress,
-                label_prefix="Downloading update...",
-            )
 
-            if progress.wasCanceled():
-                self._write_log("[download] cancelled by user")
-                return False
+            from PyQt6.QtCore import QEventLoop
+
+            # Create download worker thread
+            worker = DownloadWorker(info.zip_url, zip_path, self.timeout_s)
+
+            # Setup local event loop to prevent blocking the GUI thread
+            loop = QEventLoop()
+
+            # Connect cancel signals to worker
+            progress.canceled.connect(worker.cancel)
+            progress.rejected.connect(worker.cancel)
+
+            # Keep track of worker results
+            worker_result = {"success": False, "error": ""}
+
+            def on_progress(written, total):
+                if total > 0:
+                    progress.setRange(0, total)
+                    progress.setValue(written)
+                    percent = int((written * 100) / total)
+                    progress.setLabelText(f"Downloading update... {percent}%")
+                else:
+                    progress.setRange(0, 0)
+                    progress.setLabelText(f"Downloading update... {written // 1024} KB")
+
+            def on_finished(success, err):
+                worker_result["success"] = success
+                worker_result["error"] = err
+                loop.quit()
+
+            worker.progress_updated.connect(on_progress)
+            worker.finished.connect(on_finished)
+
+            # Start download
+            worker.start()
+
+            # Exec event loop (this processes window resizing, cancel button clicks, etc.)
+            loop.exec()
+
+            if not worker_result["success"]:
+                if worker_result["error"] == "Cancelled" or progress.wasCanceled():
+                    self._write_log("[download] cancelled by user")
+                    return False
+                else:
+                    raise RuntimeError(worker_result["error"])
 
             progress.setLabelText("Verifying download...")
             QApplication.processEvents()

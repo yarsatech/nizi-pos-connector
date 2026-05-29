@@ -30,6 +30,9 @@ Compression=lzma
 SolidCompression=yes
 PrivilegesRequired=lowest
 
+[InstallDelete]
+Type: filesandordirs; Name: "{app}\*"
+
 [Files]
 Source: "dist\NiziPOSConnector\*"; DestDir: "{app}"; Flags: recursesubdirs ignoreversion
 Source: "dist\NiziPOSConnector\ota-updater.exe"; DestDir: "{app}"; Flags: ignoreversion
