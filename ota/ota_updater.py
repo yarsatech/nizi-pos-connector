@@ -152,6 +152,27 @@ def main():
     update_zip = os.path.abspath(args.update_zip)
     main_exe_arg = args.main_exe
 
+    # Forcibly terminate any running instances of the main app to release file locks
+    logger.info(f"Terminating any running instances of {MAIN_EXE_BASENAME}...")
+    if sys.platform.startswith("win"):
+        try:
+            exe_names = [MAIN_EXE_BASENAME]
+            if not MAIN_EXE_BASENAME.lower().endswith(".exe"):
+                exe_names.append(f"{MAIN_EXE_BASENAME}.exe")
+            for name in exe_names:
+                subprocess.run(["taskkill", "/F", "/IM", name], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            # Give Windows a moment to release locks
+            time.sleep(0.5)
+        except Exception as e:
+            logger.warning(f"Failed to run taskkill: {e}")
+    else:
+        try:
+            name_stripped = MAIN_EXE_BASENAME.replace(".exe", "")
+            subprocess.run(["pkill", "-9", "-f", name_stripped], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            time.sleep(0.5)
+        except Exception as e:
+            logger.warning(f"Failed to run pkill: {e}")
+
     # If the log file is inside the target folder, we must avoid moving it during
     # backup on Windows (moving/renaming a file that's open causes WinError 32).
     log_file_abs = os.path.abspath(args.log_file) if args.log_file else None
