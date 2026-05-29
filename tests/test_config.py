@@ -15,12 +15,20 @@ from config import Config, APP_NAME, APP_AUTHOR, APP_VERSION
 
 class TestConfig(unittest.TestCase):
 
+    @classmethod
+    def setUpClass(cls):
+        import shutil
+        if os.path.exists("dummy_user_dir"):
+            shutil.rmtree("dummy_user_dir", ignore_errors=True)
+
     @patch("config.user_config_dir")
     def test_config_dir_resolution(self, mock_user_config_dir):
-        mock_user_config_dir.return_value = "dummy_user_dir"
-        cfg = Config()
-        self.assertEqual(cfg.config_dir, Path("dummy_user_dir"))
-        self.assertEqual(cfg.config_file, Path("dummy_user_dir") / "config.json")
+        import tempfile
+        with tempfile.TemporaryDirectory() as temp_dir:
+            mock_user_config_dir.return_value = temp_dir
+            cfg = Config()
+            self.assertEqual(cfg.config_dir, Path(temp_dir))
+            self.assertEqual(cfg.config_file, Path(temp_dir) / "config.json")
 
     def test_default_constants(self):
         self.assertEqual(APP_NAME, "Nizi POS Connector")
