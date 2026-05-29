@@ -5,7 +5,7 @@ Build with:  pyinstaller build.spec
 """
 
 import os
-
+import sys
 import platform
 
 # Identify platform details
@@ -13,11 +13,28 @@ is_mac = platform.system() == "Darwin"
 
 base_dir = os.path.dirname(os.path.abspath(SPEC))
 
-main_script = os.path.join(base_dir, "main.py")
+main_script    = os.path.join(base_dir, "main.py")
 updater_script = os.path.join(base_dir, "ota", "ota_updater.py")
 
+# ── Collect every local .py module explicitly ─────────────────────────────
+# hiddenimports alone is not sufficient for modules that are imported lazily
+# (inside functions / deferred). Listing them here forces PyInstaller's
+# analysis engine to walk their bytecode and pull in all transitive deps.
+local_modules = [
+    os.path.join(base_dir, "ui_app.py"),
+    os.path.join(base_dir, "ui_components.py"),
+    os.path.join(base_dir, "theme_support.py"),
+    os.path.join(base_dir, "tray_app.py"),
+    os.path.join(base_dir, "web_server.py"),
+    os.path.join(base_dir, "device_manager.py"),
+    os.path.join(base_dir, "config.py"),
+    os.path.join(base_dir, "ota", "update_manager.py"),
+    os.path.join(base_dir, "ota", "github.py"),
+    os.path.join(base_dir, "ota", "firmware_api.py"),
+]
+
 a_main = Analysis(
-    [main_script],
+    [main_script] + local_modules,   # <-- explicit module list fixes the error
     pathex=[base_dir],
     binaries=[],
     datas=[
@@ -46,6 +63,7 @@ a_main = Analysis(
         'web_server',
         'device_manager',
         'config',
+        'ota',
         'ota.update_manager',
         'ota.github',
         'ota.firmware_api',
