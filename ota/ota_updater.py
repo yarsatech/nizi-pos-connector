@@ -105,6 +105,34 @@ def _find_app_root(extract_root: str) -> Optional[str]:
     return None
 
 
+def _update_windows_registry_version(new_version: str):
+    if not sys.platform.startswith("win"):
+        return
+    try:
+        import winreg
+        key_path = r"Software\Microsoft\Windows\CurrentVersion\Uninstall\Nizi POS Connector_is1"
+        try:
+            key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, key_path, 0, winreg.KEY_SET_VALUE)
+            winreg.SetValueEx(key, "DisplayVersion", 0, winreg.REG_SZ, new_version)
+            winreg.CloseKey(key)
+            logger.info(f"Updated HKCU registry DisplayVersion to {new_version}")
+            return
+        except FileNotFoundError:
+            logger.info("Uninstall key not found in HKCU, trying HKLM...")
+
+        try:
+            key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, key_path, 0, winreg.KEY_SET_VALUE)
+            winreg.SetValueEx(key, "DisplayVersion", 0, winreg.REG_SZ, new_version)
+            winreg.CloseKey(key)
+            logger.info(f"Updated HKLM registry DisplayVersion to {new_version}")
+        except FileNotFoundError:
+            logger.warning("Uninstall key not found in HKLM either.")
+        except PermissionError:
+            logger.warning("Permission denied writing to HKLM registry.")
+    except Exception as e:
+        logger.error(f"Failed to update registry: {e}")
+
+
 def main():
     parser = argparse.ArgumentParser(description="Nizi POS Connector OTA updater helper")
     parser.add_argument(
@@ -115,6 +143,7 @@ def main():
         "--main-exe", required=False, help=f"Path to {MAIN_EXE_BASENAME} inside target-dir"
     )
     parser.add_argument("--log-file", required=False, help="Updater log file path")
+    parser.add_argument("--new-version", required=False, help="New version of the application")
     args = parser.parse_args()
 
     _configure_logger(args.log_file)
@@ -208,6 +237,10 @@ def main():
             backup_dir = None
         except Exception:
             pass
+
+        # Update Windows Registry with the new version if provided
+        if args.new_version:
+            _update_windows_registry_version(args.new_version)
 
         # Restart new version.
         logger.info("Restarting updated app...")

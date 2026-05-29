@@ -15,6 +15,7 @@
 
 [Setup]
 AppName=Nizi POS Connector
+AppMutex=NiziPOSConnectorMutex
 AppVersion={#AppVer}
 AppPublisher=Yarsa Tech
 AppPublisherURL=https://yarsa.tech/

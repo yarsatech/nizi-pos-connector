@@ -77,19 +77,29 @@ jobs:
         env:
           GITHUB_REF_NAME: ${{ github.ref_name }}
   
-      - name: Build Inno Setup installer (best-effort)
+      - name: Build Inno Setup installer
         shell: pwsh
-        continue-on-error: true
         run: |
-          # Try to install Inno Setup. If it fails, OTA still works.
+          # Install Inno Setup
           choco install innosetup -y --no-progress
 
-          if (Get-Command iscc -ErrorAction SilentlyContinue) {
-            $version = $env:GITHUB_REF_NAME -replace '^v',''
-            $arch = "x64"
-            iscc "/DAppVer=$version" "/DAppArch=$arch" "win_setup.iss"
-          } else {
-            Write-Output "iscc not available; skipping installer build."
+          $isccPath = "iscc"
+          $defaultIscc = "C:\Program Files (x86)\Inno Setup 6\iscc.exe"
+          if (Test-Path $defaultIscc) {
+            $isccPath = $defaultIscc
+          }
+
+          if ($isccPath -eq "iscc" -and -not (Get-Command iscc -ErrorAction SilentlyContinue)) {
+            Write-Error "Inno Setup compiler (iscc) not found."
+            exit 1
+          }
+
+          $version = $env:GITHUB_REF_NAME -replace '^v',''
+          $arch = "x64"
+          & $isccPath "/DAppVer=$version" "/DAppArch=$arch" "win_setup.iss"
+          if ($LASTEXITCODE -ne 0) {
+            Write-Error "Inno Setup installer compilation failed with exit code $LASTEXITCODE"
+            exit 1
           }
 
       - name: Publish GitHub Release assets

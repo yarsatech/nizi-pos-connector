@@ -324,6 +324,8 @@ class UpdateManager:
                     str(main_exe),
                     "--log-file",
                     log_path,
+                    "--new-version",
+                    info.latest_version,
                 ],
                 close_fds=True,
                 cwd=str(installed_dir),

@@ -38,6 +38,17 @@ os.chdir(BASE_DIR)
 
 
 def main():
+    # ── Single-Instance check (Windows only) ─────────────────────────────────
+    win32_mutex = None
+    if getattr(sys, "frozen", False) and os.name == "nt":
+        import ctypes
+        mutex_name = "NiziPOSConnectorMutex"
+        win32_mutex = ctypes.windll.kernel32.CreateMutexW(None, False, mutex_name)
+        last_error = ctypes.windll.kernel32.GetLastError()
+        if last_error == 183:  # ERROR_ALREADY_EXISTS
+            logger.warning("Another instance of Nizi POS Connector is already running. Exiting.")
+            sys.exit(0)
+
     logger.info("═" * 50)
     logger.info("  %s starting …", APP_NAME)
     logger.info("═" * 50)
@@ -60,18 +71,21 @@ def main():
         app.setWindowIcon(QIcon(icon_path))
 
     # ── OTA update check (before starting server/tray UI) ─────────────
-    try:
-        updater = UpdateManager(
-            github_repo=getattr(config, "github_repo", ""),
-            current_version=APP_VERSION,
-            config_dir=config.config_dir,
-        )
-        launched = updater.prompt_and_update(parent_widget=None)
-        if launched:
-            # The updater will restart the new app. Do not start the old version.
-            os._exit(0)
-    except Exception as e:
-        logger.error(f"OTA update check failed (continuing): {e}")
+    if getattr(sys, "frozen", False):
+        try:
+            updater = UpdateManager(
+                github_repo=getattr(config, "github_repo", ""),
+                current_version=APP_VERSION,
+                config_dir=config.config_dir,
+            )
+            launched = updater.prompt_and_update(parent_widget=None)
+            if launched:
+                # The updater will restart the new app. Do not start the old version.
+                os._exit(0)
+        except Exception as e:
+            logger.error(f"OTA update check failed (continuing): {e}")
+    else:
+        logger.info("Running in development mode; skipping startup OTA update check.")
 
     # Import UI/server after OTA check so "Download latest" can fully block startup.
     from web_server import start_server_thread, get_device_manager
