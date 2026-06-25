@@ -132,6 +132,35 @@ class TestDeviceManagerCommands(unittest.TestCase):
         self.device.set_idle_sleep_wake("IMG1", 20000, 150000)
         self.device.send_command.assert_called_with("IDLE_SLEEP_WAKE**IMG1**30000**150000")
 
+    def test_get_volume(self):
+        self.device.get_volume()
+        self.device.send_command.assert_called_with("GET_VOLUME")
+
+    def test_get_brightness(self):
+        self.device.get_brightness()
+        self.device.send_command.assert_called_with("GET_BRIGHTNESS")
+
+    def test_get_ble(self):
+        self.device.get_ble()
+        self.device.send_command.assert_called_with("GET_BLE")
+
+    def test_get_idle(self):
+        self.device.get_idle()
+        self.device.send_command.assert_called_with("GET_IDLE")
+
+    def test_get_expected_ack(self):
+        # Reset mocks to test actual implementation of helper
+        self.device.send_command = MagicMock()
+        
+        self.assertEqual(self.device._get_expected_ack("IDLE_SINGLE"), "MODE_SINGLE_OK")
+        self.assertEqual(self.device._get_expected_ack("IDLE_CYCLE"), "MODE_CYCLE_OK")
+        self.assertEqual(self.device._get_expected_ack("IDLE_SLEEP"), "MODE_SLEEP_OK")
+        self.assertEqual(self.device._get_expected_ack("IDLE_SLEEP_WAKE"), "MODE_SLEEP_WAKE_OK")
+        self.assertIsNone(self.device._get_expected_ack("DEVICE_ID"))
+        self.assertEqual(self.device._get_expected_ack("RESET"), "RESET_OK")
+        self.assertEqual(self.device._get_expected_ack("VOLUME**80"), "VOLUME_OK")
+        self.assertEqual(self.device._get_expected_ack("PASS**SUCCESS**OK"), "PASS_OK")
+
 
 if __name__ == "__main__":
     unittest.main()

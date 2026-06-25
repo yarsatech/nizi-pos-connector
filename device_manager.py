@@ -368,25 +368,69 @@ class DeviceManager:
 
     # ── Commands ────────────────────────────────────────────────────────
 
+    def _get_expected_ack(self, command: str) -> Optional[str]:
+        """Map a command to its expected acknowledgment string."""
+        prefix = command.split("**")[0].split(":")[0].strip()
+        
+        mapping = {
+            "IDLE_SINGLE": "MODE_SINGLE_OK",
+            "IDLE_CYCLE": "MODE_CYCLE_OK",
+            "IDLE_SLEEP": "MODE_SLEEP_OK",
+            "IDLE_SLEEP_WAKE": "MODE_SLEEP_WAKE_OK",
+            "DEVICE_ID": None,
+            "FIRMWARE_ID": None,
+            "GET_IDLE": None,
+            "GET_VOLUME": None,
+            "GET_BRIGHTNESS": None,
+            "GET_BLE": None,
+            "START_RTIMAGE": None,
+            "IMAGE_UPLOAD": "READY",
+            "IMAGE_UPLOAD_2": "READY",
+        }
+        
+        if prefix in mapping:
+            return mapping[prefix]
+            
+        return f"{prefix}_OK"
+
     def send_command(self, command: str) -> dict:
         """
-        Send a text command to the device (newline-terminated).
-        Returns {"success": bool, "error": str | None}.
+        Send a text command to the device (newline-terminated) and wait for the expected ACK/response.
+        Returns {"success": bool, "response": str | None, "error": str | None}.
         """
         with self._lock:
             if not self._connected or not self._serial or not self._serial.is_open:
-                return {"success": False, "error": "Device not connected."}
+                return {"success": False, "response": None, "error": "Device not connected."}
             try:
                 self._serial.reset_input_buffer()
                 self._serial.write((command + "\n").encode("utf-8"))
                 self._serial.flush()
                 logger.info(f"Sent: {command}")
-                return {"success": True, "error": None}
+                
+                # Read response line
+                response = self._serial.readline().decode("utf-8", errors="ignore").strip()
+                logger.info(f"  <- {response!r}")
+                
+                # Check for expected ACK
+                expected_ack = self._get_expected_ack(command)
+                if expected_ack:
+                    if response == expected_ack:
+                        return {"success": True, "response": response, "error": None}
+                    else:
+                        return {
+                            "success": False,
+                            "response": response,
+                            "error": f"Unexpected ACK: expected {expected_ack}, got {response}."
+                        }
+                else:
+                    # For query commands returning variable state, return the response line itself
+                    return {"success": True, "response": response, "error": None}
+                    
             except serial.SerialException as exc:
                 logger.error(f"Send error: {exc}")
                 self._connected = False
                 self._notify_status()
-                return {"success": False, "error": str(exc)}
+                return {"success": False, "response": None, "error": str(exc)}
 
     # ── Convenience command helpers ─────────────────────────────────────
 
@@ -426,8 +470,16 @@ class DeviceManager:
     def set_volume(self, value: int):
         return self.send_command(f"VOLUME**{value}")
 
+    def get_volume(self):
+        """Query speaker volume level from the device."""
+        return self.send_command("GET_VOLUME")
+
     def set_brightness(self, value: int):
         return self.send_command(f"BRIGHTNESS**{value}")
+
+    def get_brightness(self):
+        """Query LCD backlight brightness level from the device."""
+        return self.send_command("GET_BRIGHTNESS")
 
     def set_screentime(self, value: int):
         return self.send_command(f"SCREENTIME**{value}")
@@ -447,6 +499,10 @@ class DeviceManager:
     def set_ble(self, enabled: bool):
         """Enable or disable Bluetooth (BLE_ON / BLE_OFF)."""
         return self.send_command("BLE_ON" if enabled else "BLE_OFF")
+
+    def get_ble(self):
+        """Query Bluetooth active status from the device."""
+        return self.send_command("GET_BLE")
 
     # ── Idle mode commands ──────────────────────────────────────────────
 

@@ -392,9 +392,9 @@ def api_upload_idle_image():
         return jsonify({"success": False, "error": f"Invalid image format or processing failed: {e}"}), 400
 
     if slot == "2":
-        result = device.upload_idle_image_2(jpeg_data)
+        result = device.upload_wallpaper(jpeg_data, slot2=True)
     else:
-        result = device.upload_idle_image(jpeg_data)
+        result = device.upload_wallpaper(jpeg_data, slot2=False)
     return jsonify(result)
 
 

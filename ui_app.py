@@ -43,6 +43,7 @@ class TrayFlyout(QWidget):
     wallpaper_upload_status_updated = pyqtSignal(str, str, bool)
     toggle_visibility = pyqtSignal()
     languages_loaded = pyqtSignal(list)
+    device_settings_loaded = pyqtSignal(dict)
 
     def __init__(self, device_manager, web_port=9121, on_quit=None):
         super().__init__()
@@ -86,6 +87,7 @@ class TrayFlyout(QWidget):
         self.wallpaper_upload_status_updated.connect(self._on_wallpaper_upload_status)
         self.toggle_visibility.connect(self._toggle_internal)
         self.languages_loaded.connect(self._on_languages_loaded)
+        self.device_settings_loaded.connect(self._on_device_settings_loaded)
 
         icon_path = os.path.join("assets", "icon.ico")
         if os.path.exists(icon_path):
@@ -348,6 +350,12 @@ class TrayFlyout(QWidget):
         self.btn_send_status.clicked.connect(self._send_status)
         layout.addWidget(self.btn_send_status)
 
+        self.status_feedback = QLabel("")
+        self.status_feedback.setObjectName("instructionLabel")
+        self.status_feedback.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.status_feedback.setVisible(False)
+        layout.addWidget(self.status_feedback)
+
         self.stack.addWidget(page)
 
     def _build_page_qr(self):
@@ -376,6 +384,12 @@ class TrayFlyout(QWidget):
         self.btn_send_qr.clicked.connect(self._send_qr)
         layout.addWidget(self.btn_send_qr)
 
+        self.qr_feedback = QLabel("")
+        self.qr_feedback.setObjectName("instructionLabel")
+        self.qr_feedback.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.qr_feedback.setVisible(False)
+        layout.addWidget(self.qr_feedback)
+
         self.stack.addWidget(page)
 
     def _build_page_text(self):
@@ -403,6 +417,12 @@ class TrayFlyout(QWidget):
         self.btn_send_text.setObjectName("primaryBtn")
         self.btn_send_text.clicked.connect(self._send_text)
         layout.addWidget(self.btn_send_text)
+
+        self.text_feedback = QLabel("")
+        self.text_feedback.setObjectName("instructionLabel")
+        self.text_feedback.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.text_feedback.setVisible(False)
+        layout.addWidget(self.text_feedback)
 
         self.stack.addWidget(page)
 
@@ -794,24 +814,24 @@ class TrayFlyout(QWidget):
         row1 = QHBoxLayout()
         self.btn_idle = QPushButton("💤 IDLE")
         self.btn_idle.setObjectName("secondaryBtn")
-        self.btn_idle.clicked.connect(lambda: self.device.send_command("IDLE"))
+        self.btn_idle.clicked.connect(self._quick_send_idle)
         row1.addWidget(self.btn_idle)
 
         self.btn_wake = QPushButton("☀️ WAKE")
         self.btn_wake.setObjectName("secondaryBtn")
-        self.btn_wake.clicked.connect(lambda: self.device.send_command("WAKE"))
+        self.btn_wake.clicked.connect(self._quick_send_wake)
         row1.addWidget(self.btn_wake)
         layout.addLayout(row1)
 
         row2 = QHBoxLayout()
         self.btn_restart = QPushButton("🔄 RESTART")
         self.btn_restart.setObjectName("warningBtn")
-        self.btn_restart.clicked.connect(lambda: self.device.send_command("RESET"))
+        self.btn_restart.clicked.connect(self._quick_send_restart)
         row2.addWidget(self.btn_restart)
 
         self.btn_format = QPushButton("🗑 FORMAT")
         self.btn_format.setObjectName("dangerBtn")
-        self.btn_format.clicked.connect(lambda: self.device.send_command("FORMAT"))
+        self.btn_format.clicked.connect(self._quick_send_format)
         row2.addWidget(self.btn_format)
         layout.addLayout(row2)
 
@@ -830,7 +850,11 @@ class TrayFlyout(QWidget):
         self.btn_quick_pass.clicked.connect(self._quick_send_pass)
         layout.addWidget(self.btn_quick_pass)
 
-
+        self.quick_feedback = QLabel("")
+        self.quick_feedback.setObjectName("instructionLabel")
+        self.quick_feedback.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.quick_feedback.setVisible(False)
+        layout.addWidget(self.quick_feedback)
 
         self.stack.addWidget(page)
 
@@ -871,31 +895,58 @@ class TrayFlyout(QWidget):
 
     def _send_status(self):
         cmd = self.status_type.currentText().split()[0]
-        self.device.send_command(f"{cmd}**{self.status_field1.text()}**{self.status_field2.text()}")
+        res = self.device.send_command(f"{cmd}**{self.status_field1.text()}**{self.status_field2.text()}")
+        self._handle_command_result(res, self.status_feedback, "✓ Status screen sent")
 
     def _quick_send_wait(self):
         index = self.status_type.findText("WAIT", Qt.MatchFlag.MatchContains)
         if index >= 0:
             self.status_type.setCurrentIndex(index)
-        self._send_status()
+        cmd = self.status_type.currentText().split()[0]
+        res = self.device.send_command(f"{cmd}**{self.status_field1.text()}**{self.status_field2.text()}")
+        self._handle_command_result(res, self.quick_feedback, "✓ Wait screen sent")
 
     def _quick_send_pass(self):
         index = self.status_type.findText("PASS", Qt.MatchFlag.MatchContains)
         if index >= 0:
             self.status_type.setCurrentIndex(index)
-        self._send_status()
+        cmd = self.status_type.currentText().split()[0]
+        res = self.device.send_command(f"{cmd}**{self.status_field1.text()}**{self.status_field2.text()}")
+        self._handle_command_result(res, self.quick_feedback, "✓ Pass screen sent")
+
+    def _quick_send_idle(self):
+        res = self.device.send_command("IDLE")
+        self._handle_command_result(res, self.quick_feedback, "✓ Device set to IDLE")
+
+    def _quick_send_wake(self):
+        res = self.device.send_command("WAKE")
+        self._handle_command_result(res, self.quick_feedback, "✓ Device woken up")
+
+    def _quick_send_restart(self):
+        res = self.device.send_command("RESET")
+        self._handle_command_result(res, self.quick_feedback, "✓ Device restarting...")
+
+    def _quick_send_format(self):
+        res = self.device.send_command("FORMAT")
+        self._handle_command_result(res, self.quick_feedback, "✓ Device format command sent")
 
     def _send_qr(self):
-        self.device.send_command(
+        res = self.device.send_command(
             f"QR**{self.qr_amount.text()}**{self.qr_scan_text.text()}"
             f"**{self.qr_payload.toPlainText().strip()}"
         )
+        sender = self.sender()
+        if sender == self.btn_quick_qr:
+            self._handle_command_result(res, self.quick_feedback, "✓ QR screen sent")
+        else:
+            self._handle_command_result(res, self.qr_feedback, "✓ QR screen sent")
 
     def _send_text(self):
-        self.device.send_command(
+        res = self.device.send_command(
             f"TEXT**{self.text_title.text()}**{self.text_subtitle.text()}"
             f"**{self.text_msg.toPlainText().strip()}"
         )
+        self._handle_command_result(res, self.text_feedback, "✓ Text screen sent")
 
     def _select_preview_image(self):
         path, _ = QFileDialog.getOpenFileName(self, "Select Preview Image", "", "Images (*.jpg *.jpeg *.png)")
@@ -1050,6 +1101,7 @@ class TrayFlyout(QWidget):
         """Send the selected idle mode command."""
         index = self.idle_mode_dropdown.currentIndex()
         img1 = self.idle_img1.currentText()
+        res = None
 
         if index == 0:  # SLEEP_WAKE
             try:
@@ -1060,9 +1112,9 @@ class TrayFlyout(QWidget):
             if sleep_sec < 30:
                 sleep_sec = 30
                 self.idle_sleep_sec.setText(str(sleep_sec))
-            self.device.set_idle_sleep_wake(img1, sleep_sec * 1000, wake_sec * 1000)
+            res = self.device.set_idle_sleep_wake(img1, sleep_sec * 1000, wake_sec * 1000)
         elif index == 1:  # SINGLE
-            self.device.set_idle_single(img1)
+            res = self.device.set_idle_single(img1)
         elif index == 2:  # CYCLE
             img2 = self.idle_img2.currentText()
             try:
@@ -1070,7 +1122,7 @@ class TrayFlyout(QWidget):
                 time2_sec = int(self.idle_time2_sec.text())
             except ValueError:
                 time1_sec, time2_sec = 60, 60
-            self.device.set_idle_cycle(img1, time1_sec * 1000, img2, time2_sec * 1000)
+            res = self.device.set_idle_cycle(img1, time1_sec * 1000, img2, time2_sec * 1000)
         elif index == 3:  # SLEEP
             try:
                 sleep_sec = int(self.idle_sleep_sec.text())
@@ -1079,8 +1131,10 @@ class TrayFlyout(QWidget):
             if sleep_sec < 30:
                 sleep_sec = 30
                 self.idle_sleep_sec.setText(str(sleep_sec))
-            self.device.set_idle_sleep(img1, sleep_sec * 1000)
-        self._show_feedback(self.idle_mode_feedback, "✓ Command sent")
+            res = self.device.set_idle_sleep(img1, sleep_sec * 1000)
+        
+        if res:
+            self._handle_command_result(res, self.idle_mode_feedback, "✓ Idle mode set")
 
     def _send_timeout(self):
         """Send the timeout command."""
@@ -1089,31 +1143,181 @@ class TrayFlyout(QWidget):
             pf_sec = int(self.timeout_pf.text())
         except ValueError:
             qr_sec, pf_sec = 300, 20
-        self.device.set_timeout(qr_sec * 1000, pf_sec * 1000)
-        self._show_feedback(self.timeout_feedback, "✓ Command sent")
+        res = self.device.set_timeout(qr_sec * 1000, pf_sec * 1000)
+        self._handle_command_result(res, self.timeout_feedback, "✓ Timeouts updated")
 
     def _send_buzzer_on(self):
-        self.device.activate_buzzer(1)
-        self._show_feedback(self.buzzer_feedback, "✓ Buzzer enabled")
+        res = self.device.activate_buzzer(1)
+        self._handle_command_result(res, self.buzzer_feedback, "✓ Buzzer enabled")
 
     def _send_buzzer_off(self):
-        self.device.activate_buzzer(0)
-        self._show_feedback(self.buzzer_feedback, "✓ Buzzer disabled")
+        res = self.device.activate_buzzer(0)
+        self._handle_command_result(res, self.buzzer_feedback, "✓ Buzzer disabled")
 
     def _send_volume(self):
         val = self.volume_slider.value()
-        self.device.set_volume(val)
-        self._show_feedback(self.volume_feedback, f"✓ Volume set to {val}%")
+        res = self.device.set_volume(val)
+        self._handle_command_result(res, self.volume_feedback, f"✓ Volume set to {val}%")
 
     def _send_brightness(self):
         val = self.brightness_slider.value()
-        self.device.set_brightness(val)
-        self._show_feedback(self.brightness_feedback, f"✓ Brightness set to {val}%")
+        res = self.device.set_brightness(val)
+        self._handle_command_result(res, self.brightness_feedback, f"✓ Brightness set to {val}%")
 
     def _send_ble(self, enabled: bool):
-        self.device.set_ble(enabled)
+        res = self.device.set_ble(enabled)
         label = "ON" if enabled else "OFF"
-        self._show_feedback(self.ble_feedback, f"✓ Bluetooth {label}")
+        self._handle_command_result(res, self.ble_feedback, f"✓ Bluetooth {label}")
+        if res.get("success"):
+            self._update_ble_buttons_style(enabled)
+
+    def _parse_get_idle(self, response: str) -> dict:
+        result = {}
+        if not response:
+            return result
+        try:
+            parts = response.split(",")
+            for part in parts:
+                if ":" in part:
+                    k, v = part.split(":", 1)
+                    result[k.strip().lower()] = v.strip()
+                elif "=" in part:
+                    k, v = part.split("=", 1)
+                    result[k.strip().lower()] = v.strip()
+        except Exception as e:
+            logger.error(f"Error parsing GET_IDLE response {response!r}: {e}")
+        return result
+
+    def _query_device_settings(self):
+        """Query settings from the device in a background thread."""
+        if not self.device.connected:
+            return
+        
+        settings = {}
+        
+        # 1. Volume
+        res_vol = self.device.get_volume()
+        if res_vol.get("success") and res_vol.get("response"):
+            resp = res_vol["response"]
+            if "**" in resp:
+                try:
+                    settings["volume"] = int(resp.split("**")[1])
+                except ValueError:
+                    pass
+        
+        # 2. Brightness
+        res_bright = self.device.get_brightness()
+        if res_bright.get("success") and res_bright.get("response"):
+            resp = res_bright["response"]
+            if "**" in resp:
+                try:
+                    settings["brightness"] = int(resp.split("**")[1])
+                except ValueError:
+                    pass
+                    
+        # 3. Bluetooth (BLE)
+        res_ble = self.device.get_ble()
+        if res_ble.get("success") and res_ble.get("response"):
+            resp = res_ble["response"]
+            settings["ble"] = (resp == "BLE_ON")
+            
+        # 4. Idle Mode
+        res_idle = self.device.get_idle()
+        if res_idle.get("success") and res_idle.get("response"):
+            resp = res_idle["response"]
+            parsed_idle = self._parse_get_idle(resp)
+            if parsed_idle:
+                settings["idle"] = parsed_idle
+
+        self.device_settings_loaded.emit(settings)
+
+    @pyqtSlot(dict)
+    def _on_device_settings_loaded(self, settings):
+        """Update UI elements based on queried device settings."""
+        # Update Volume
+        if "volume" in settings:
+            vol = settings["volume"]
+            self.volume_slider.blockSignals(True)
+            self.volume_slider.setValue(vol)
+            self.volume_slider.blockSignals(False)
+            self.volume_val_label.setText(f"{vol}%")
+            
+        # Update Brightness
+        if "brightness" in settings:
+            bright = settings["brightness"]
+            self.brightness_slider.blockSignals(True)
+            self.brightness_slider.setValue(bright)
+            self.brightness_slider.blockSignals(False)
+            self.brightness_val_label.setText(f"{bright}%")
+            
+        # Update Bluetooth (BLE) State
+        if "ble" in settings:
+            self._update_ble_buttons_style(settings["ble"])
+            
+        # Update Idle mode selection and its fields
+        if "idle" in settings:
+            idle_cfg = settings["idle"]
+            mode = (idle_cfg.get("mode") or "").upper()
+            
+            mode_map = {
+                "SLEEP_WAKE": 0,
+                "SINGLE": 1,
+                "CYCLE": 2,
+                "SLEEP": 3
+            }
+            if mode in mode_map:
+                idx = mode_map[mode]
+                self.idle_mode_dropdown.blockSignals(True)
+                self.idle_mode_dropdown.setCurrentIndex(idx)
+                self.idle_mode_dropdown.blockSignals(False)
+                self._on_idle_mode_change(idx)
+                
+                if idx == 0: # SLEEP_WAKE
+                    img = idle_cfg.get("image_name") or "IMG1"
+                    sleep_sec = int(idle_cfg.get("sleep_ms", "30000")) // 1000
+                    wake_sec = int(idle_cfg.get("wake_ms", "120000")) // 1000
+                    
+                    self.idle_img1.setCurrentText(img)
+                    self.idle_sleep_sec.setText(str(sleep_sec))
+                    self.idle_wake_sec.setText(str(wake_sec))
+                elif idx == 1: # SINGLE
+                    img = idle_cfg.get("image_name") or "IMG1"
+                    self.idle_img1.setCurrentText(img)
+                elif idx == 2: # CYCLE
+                    img1 = idle_cfg.get("img1") or "IMG1"
+                    img2 = idle_cfg.get("img2") or "IMG2"
+                    time1_sec = int(idle_cfg.get("time1", "60000")) // 1000
+                    time2_sec = int(idle_cfg.get("time2", "60000")) // 1000
+                    
+                    self.idle_img1.setCurrentText(img1)
+                    self.idle_img2.setCurrentText(img2)
+                    self.idle_time1_sec.setText(str(time1_sec))
+                    self.idle_time2_sec.setText(str(time2_sec))
+                elif idx == 3: # SLEEP
+                    img = idle_cfg.get("image_name") or "IMG1"
+                    sleep_sec = int(idle_cfg.get("inactivity_ms", "30000")) // 1000
+                    
+                    self.idle_img1.setCurrentText(img)
+                    self.idle_sleep_sec.setText(str(sleep_sec))
+
+    def _update_ble_buttons_style(self, ble_on: bool):
+        if ble_on:
+            self.btn_ble_on.setObjectName("primaryBtn")
+            self.btn_ble_off.setObjectName("secondaryBtn")
+        else:
+            self.btn_ble_on.setObjectName("secondaryBtn")
+            self.btn_ble_off.setObjectName("primaryBtn")
+        self.btn_ble_on.style().unpolish(self.btn_ble_on)
+        self.btn_ble_on.style().polish(self.btn_ble_on)
+        self.btn_ble_off.style().unpolish(self.btn_ble_off)
+        self.btn_ble_off.style().polish(self.btn_ble_off)
+
+    def _handle_command_result(self, res: dict, feedback_label: QLabel, success_text: str):
+        if res.get("success"):
+            self._show_feedback(feedback_label, success_text, self.theme_tokens["success_text"])
+        else:
+            err = res.get("error") or "Unknown error"
+            self._show_feedback(feedback_label, f"✗ {err}", self.theme_tokens["warning_text"])
 
     def _show_feedback(self, label, text, color="#16a34a"):
         """Show a brief feedback message on a label, auto-hide after 3s."""
@@ -1257,6 +1461,9 @@ class TrayFlyout(QWidget):
     def _on_status_updated(self, connected, port):
         if connected:
             self._apply_device_screen_profile()
+            # Start background thread to query current device settings
+            threading.Thread(target=self._query_device_settings, daemon=True).start()
+
             self.status_label.setText("Connected")
             self.status_label.setStyleSheet(f"color: {self.theme_tokens["success_text"]}; font-size: 15px; font-weight: 600;")
             self.instruction_label.setText(f"Communicating on {port}")
