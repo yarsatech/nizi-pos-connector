@@ -17,6 +17,7 @@ from theme_support import get_web_theme_css, prefers_light_theme
 from device_manager import DeviceManager
 
 from config import config
+from ota.firmware_api import get_languages, build_update_url, extract_model_code
 
 logger = logging.getLogger(__name__)
 
@@ -240,8 +241,58 @@ def api_upload_image():
     return jsonify(result)
 
 
-@app.route("/api/settings", methods=["POST"])
+def _parse_get_idle(response: str) -> dict:
+    result = {}
+    if not response:
+        return result
+    try:
+        parts = response.split(",")
+        for part in parts:
+            if ":" in part:
+                k, v = part.split(":", 1)
+                result[k.strip().lower()] = v.strip()
+            elif "=" in part:
+                k, v = part.split("=", 1)
+                result[k.strip().lower()] = v.strip()
+    except Exception as e:
+        logger.error(f"Error parsing GET_IDLE response {response!r}: {e}")
+    return result
+
+
+@app.route("/api/settings", methods=["GET", "POST"])
 def api_settings():
+    if request.method == "GET":
+        settings = {}
+        # 1. Volume
+        res_vol = device.get_volume()
+        if res_vol.get("success") and res_vol.get("response"):
+            resp = res_vol["response"]
+            if "**" in resp:
+                try:
+                    settings["volume"] = int(resp.split("**")[1])
+                except ValueError:
+                    pass
+        # 2. Brightness
+        res_bright = device.get_brightness()
+        if res_bright.get("success") and res_bright.get("response"):
+            resp = res_bright["response"]
+            if "**" in resp:
+                try:
+                    settings["brightness"] = int(resp.split("**")[1])
+                except ValueError:
+                    pass
+        # 3. BLE
+        res_ble = device.get_ble()
+        if res_ble.get("success") and res_ble.get("response"):
+            settings["ble"] = (res_ble["response"] == "BLE_ON")
+            
+        # 4. Idle Mode
+        res_idle = device.get_idle()
+        if res_idle.get("success") and res_idle.get("response"):
+            settings["idle_config"] = _parse_get_idle(res_idle["response"])
+            
+        return jsonify({"success": True, "settings": settings})
+
     data = request.get_json(silent=True) or {}
     results = {}
 
@@ -398,11 +449,94 @@ def api_upload_idle_image():
     return jsonify(result)
 
 
-@app.route("/api/get-idle", methods=["POST"])
+@app.route("/api/get-volume", methods=["GET", "POST"])
+def api_get_volume():
+    """Query speaker volume level from the device."""
+    result = device.get_volume()
+    if result.get("success") and result.get("response"):
+        resp = result["response"]
+        if "**" in resp:
+            try:
+                result["volume"] = int(resp.split("**")[1])
+            except ValueError:
+                pass
+    return jsonify(result)
+
+
+@app.route("/api/get-brightness", methods=["GET", "POST"])
+def api_get_brightness():
+    """Query LCD backlight brightness level from the device."""
+    result = device.get_brightness()
+    if result.get("success") and result.get("response"):
+        resp = result["response"]
+        if "**" in resp:
+            try:
+                result["brightness"] = int(resp.split("**")[1])
+            except ValueError:
+                pass
+    return jsonify(result)
+
+
+@app.route("/api/get-ble", methods=["GET", "POST"])
+def api_get_ble():
+    """Query Bluetooth active status from the device."""
+    result = device.get_ble()
+    if result.get("success") and result.get("response"):
+        result["ble_on"] = (result["response"] == "BLE_ON")
+    return jsonify(result)
+
+
+@app.route("/api/get-idle", methods=["GET", "POST"])
 def api_get_idle():
     """Query the current idle configuration from the device."""
     result = device.get_idle()
+    if result.get("success") and result.get("response"):
+        result["idle_config"] = _parse_get_idle(result["response"])
     return jsonify(result)
+
+
+@app.route("/api/languages", methods=["GET"])
+def api_languages():
+    """Get list of supported languages from Yarsa API."""
+    langs = get_languages()
+    return jsonify({"success": True, "languages": langs})
+
+
+@app.route("/api/language-update-url", methods=["GET", "POST"])
+def api_language_update_url():
+    """Build update URL for specific language and model."""
+    if request.method == "POST":
+        data = request.get_json(silent=True) or {}
+    else:
+        data = request.args
+        
+    lang = data.get("language")
+    if not lang:
+        return jsonify({"success": False, "error": "Missing 'language' parameter."}), 400
+        
+    model = getattr(device, "model", None)
+    if not model:
+        model = extract_model_code(device.device_id)
+    if not model:
+        model = "B31"
+        
+    url = build_update_url(model=model, port=device.port, language=lang)
+    return jsonify({"success": True, "url": url})
+
+
+@app.route("/api/prepare-for-flash", methods=["POST"])
+def api_prepare_for_flash():
+    """Suspend auto-connection and disconnect serial port to free it for flashing."""
+    data = request.get_json(silent=True) or {}
+    try:
+        duration = int(data.get("duration", 120))
+    except (ValueError, TypeError):
+        duration = 120
+    
+    device.suspend_auto_connect(duration)
+    threading.Thread(target=device.disconnect, daemon=True).start()
+    return jsonify({"success": True, "suspended_for": duration})
+
 
 @app.route("/api/ble", methods=["POST"])
 def api_ble():
