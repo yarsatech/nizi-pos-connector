@@ -85,6 +85,30 @@ paths:
           description: OK
 
   /api/settings:
+    get:
+      summary: Get device settings
+      description: Returns volume, brightness, BLE enabled state, and idle config.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  settings:
+                    type: object
+                    properties:
+                      volume:
+                        type: integer
+                      brightness:
+                        type: integer
+                      ble:
+                        type: boolean
+                      idle_config:
+                        type: object
     post:
       summary: Update system settings
       requestBody:
@@ -246,15 +270,140 @@ paths:
           description: OK
 
   /api/get-idle:
+    get:
+      summary: Query current idle configuration
+      description: Sends GET_IDLE to the device and returns the result.
+      responses:
+        '200':
+          description: OK
     post:
       summary: Query current idle configuration
       description: Sends GET_IDLE to the device and returns the result.
       responses:
         '200':
           description: OK
+
+  /api/get-ble:
+    get:
+      summary: Query Bluetooth stack status
+      description: Sends IS_BLE_ON and returns whether BLE is running.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  response:
+                    type: string
+                    example: "TRUE"
+                  ble_on:
+                    type: boolean
+                  error:
+                    type: string
+                    nullable: true
+    post:
+      summary: Query Bluetooth stack status
+      description: Sends IS_BLE_ON and returns whether BLE is running.
+      responses:
+        '200':
+          description: OK
+
+  /api/get-volume:
+    get:
+      summary: Query current speaker volume level
+      description: Sends GET_VOLUME and returns current volume integer.
+      responses:
+        '200':
+          description: OK
+    post:
+      summary: Query current speaker volume level
+      responses:
+        '200':
+          description: OK
+
+  /api/get-brightness:
+    get:
+      summary: Query current backlight brightness level
+      description: Sends GET_BRIGHTNESS and returns current brightness integer.
+      responses:
+        '200':
+          description: OK
+    post:
+      summary: Query current backlight brightness level
+      responses:
+        '200':
+          description: OK
+
+  /api/languages:
+    get:
+      summary: Get supported firmware voice languages
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  languages:
+                    type: array
+                    items:
+                      type: string
+
+  /api/language-update-url:
+    get:
+      summary: Get firmware WebSerial update URL for language
+      parameters:
+        - name: language
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+    post:
+      summary: Get firmware WebSerial update URL for language
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [language]
+              properties:
+                language:
+                  type: string
+      responses:
+        '200':
+          description: OK
+
+  /api/prepare-for-flash:
+    post:
+      summary: Temporarily release serial port for WebSerial flashing
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                duration:
+                  type: integer
+                  default: 120
+                  description: Suspension duration in seconds
+      responses:
+        '200':
+          description: OK
+
   /api/ble:
     post:
-      summary: Enable or disable Bluetooth (BLE_ON / BLE_OFF)
+      summary: Enable or disable Bluetooth (DO_BLE_MODE_ENABLE / BLE_OFF)
       requestBody:
         required: true
         content:
@@ -265,7 +414,7 @@ paths:
               properties:
                 enabled:
                   type: boolean
-                  description: true → BLE_ON, false → BLE_OFF
+                  description: true → DO_BLE_MODE_ENABLE, false → BLE_OFF
       responses:
         '200':
           description: OK

@@ -35,6 +35,7 @@ python -m unittest discover -s tests -p "test_*.py" -v
 python tests/test_device_manager.py
 python tests/test_config.py
 python tests/test_firmware_api.py
+python tests/test_ui_components.py
 ```
 
 ## Build

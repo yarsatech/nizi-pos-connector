@@ -356,9 +356,12 @@ async function startReadLoop(port, onLine) {
 ||`BRIGHTNESS**[0-100]`|`BRIGHTNESS_OK`|
 ||`GET_BRIGHTNESS`|`BRIGHTNESS**[value]`|
 ||`TIMEOUT**[QR_MS]**[PF_MS]`|`TIMEOUT_OK`|
-||`BLE_ON`|`BLE_ON_OK`|
+||`DO_BLE_MODE_ENABLE`|`BLE_ON_OK`|
 ||`BLE_OFF`|`BLE_OFF_OK`|
-||`GET_BLE`|`BLE_ON` or `BLE_OFF`|
+||`IS_BLE_ON`|`TRUE` or `FALSE`|
+||`IS_BLE_PIN_CHANGED`|`TRUE` or `FALSE`|
+||`BLE_CHG_PIN**[Old]**[New]`|_(reboots on success)_|
+||`BLE_RESET_PIN`|_(reboots on success)_|
 |**Image Upload**|`IMAGE_UPLOAD:[size]`|`READY`|
 ||`IMAGE_UPLOAD_2:[size]`|`READY`|
 
@@ -375,7 +378,8 @@ Query commands return structured strings rather than simple `_OK` ACKs:
 |`GET_IDLE`|`MODE:SINGLE,image_name=IMG1` or `MODE:CYCLE,img1=IMG1,time1=60000,img2=IMG2,time2=60000`|
 |`GET_VOLUME`|`VOLUME**80`|
 |`GET_BRIGHTNESS`|`BRIGHTNESS**50`|
-|`GET_BLE`|`BLE_ON` or `BLE_OFF`|
+|`IS_BLE_ON`|`TRUE` or `FALSE`|
+|`IS_BLE_PIN_CHANGED`|`TRUE` or `FALSE`|
 
 Parse response values like this:
 
@@ -617,6 +621,77 @@ WAKE
 
 ```js
 await sendCommand("WAKE");
+```
+
+---
+
+### Bluetooth (BLE) Control
+
+Enables or disables Bluetooth Low Energy on the device.
+
+#### `DO_BLE_MODE_ENABLE` — Enable Bluetooth
+
+Starts the BLE stack on the device.
+
+```
+DO_BLE_MODE_ENABLE
+```
+
+- Expected ACK: `BLE_ON_OK`
+
+#### `BLE_OFF` — Disable Bluetooth
+
+Stops the BLE stack.
+
+```
+BLE_OFF
+```
+
+- Expected ACK: `BLE_OFF_OK`
+
+#### `IS_BLE_ON` — Query BLE Status
+
+Queries whether the BLE stack is currently active.
+
+```
+IS_BLE_ON
+```
+
+- Response: `TRUE` or `FALSE`
+
+---
+
+### BLE Security & PIN Management
+
+#### `IS_BLE_PIN_CHANGED` — Check PIN Status
+
+Queries whether the user has changed the device PIN from its factory/MAC-derived default.
+
+```
+IS_BLE_PIN_CHANGED
+```
+
+- Response: `TRUE` (PIN was customized) or `FALSE` (still using default PIN)
+
+#### `BLE_CHG_PIN` — Change PIN
+
+Changes the BLE pairing PIN after verifying the current active PIN. The device will automatically reboot upon successful PIN update.
+
+```
+BLE_CHG_PIN**{old_pin}**{new_pin}
+```
+
+```js
+// Example: Change PIN from 1234 to 5678
+await sendCommand("BLE_CHG_PIN**1234**5678");
+```
+
+#### `BLE_RESET_PIN` — Reset PIN to Default
+
+Resets the BLE pairing PIN back to the default MAC-derived PIN. The device will automatically reboot upon reset.
+
+```
+BLE_RESET_PIN
 ```
 
 ---

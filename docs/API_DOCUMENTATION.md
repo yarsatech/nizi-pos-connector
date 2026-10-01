@@ -74,7 +74,26 @@ Sends a raw command string to the device.
 
 ---
 
-### 5. Update Settings
+### 5. Settings
+**`GET /api/settings`**  
+Queries the current device parameters (volume, brightness, BLE status, and idle configuration).
+
+**Response (JSON):**
+```json
+{
+  "success": true,
+  "settings": {
+    "volume": 80,
+    "brightness": 100,
+    "ble": true,
+    "idle_config": {
+      "mode": "SINGLE",
+      "image_name": "IMG1"
+    }
+  }
+}
+```
+
 **`POST /api/settings`**  
 Updates device parameters.
 
@@ -152,7 +171,7 @@ Triggers a diagnostic buzzer test (BUZZERTEST command).
 
 ### 11. Bluetooth Control
 **`POST /api/ble`**  
-Enable or disable Bluetooth on the device.
+Enable or disable Bluetooth Low Energy on the device (`DO_BLE_MODE_ENABLE` / `BLE_OFF`).
 
 **Body (JSON):**
 ```json
@@ -212,8 +231,8 @@ Configures the device idle/inactivity behavior.
 ---
 
 ### 13. Get Idle Mode
-**`POST /api/get-idle`**  
-Queries the current idle configuration from the device (GET_IDLE).
+**`GET /api/get-idle`** or **`POST /api/get-idle`**  
+Queries the current idle configuration from the device (`GET_IDLE`).
 
 ---
 
@@ -225,6 +244,99 @@ Uploads a persistent image for idle display modes (IMG1 or IMG2).
 - `image`: Binary JPEG file.
 - `slot`: `"1"` for IMG1 (primary), `"2"` for IMG2 (secondary, used by CYCLE mode).
 - `size`: (Optional) Target size, e.g., `"320x480"`.
+
+---
+
+### 15. Query Bluetooth Status
+**`GET /api/get-ble`** or **`POST /api/get-ble`**  
+Queries whether the BLE stack is currently active (via `IS_BLE_ON`).
+
+**Response (JSON):**
+```json
+{
+  "success": true,
+  "response": "TRUE",
+  "ble_on": true,
+  "error": null
+}
+```
+
+---
+
+### 16. Query Volume Level
+**`GET /api/get-volume`** or **`POST /api/get-volume`**  
+Queries the device speaker volume (via `GET_VOLUME`).
+
+**Response (JSON):**
+```json
+{
+  "success": true,
+  "response": "VOLUME**80",
+  "volume": 80,
+  "error": null
+}
+```
+
+---
+
+### 17. Query Brightness Level
+**`GET /api/get-brightness`** or **`POST /api/get-brightness`**  
+Queries LCD backlight brightness (via `GET_BRIGHTNESS`).
+
+**Response (JSON):**
+```json
+{
+  "success": true,
+  "response": "BRIGHTNESS**100",
+  "brightness": 100,
+  "error": null
+}
+```
+
+---
+
+### 18. Supported Languages
+**`GET /api/languages`**  
+Fetches the list of supported voice/sound firmware languages from the firmware API.
+
+**Response (JSON):**
+```json
+{
+  "success": true,
+  "languages": ["English", "Nepali"]
+}
+```
+
+---
+
+### 19. Language Update URL
+**`GET /api/language-update-url`** or **`POST /api/language-update-url`**  
+Builds the WebSerial firmware update URL for a specific language and device model.
+
+**Query Parameters / JSON Body:**
+- `language`: Target language string (e.g. `"English"`).
+
+**Response (JSON):**
+```json
+{
+  "success": true,
+  "url": "https://update.yarsatech.com/pos/?model=B31&port=COM15&lang=English"
+}
+```
+
+---
+
+### 20. Prepare for Flashing
+**`POST /api/prepare-for-flash`**  
+Suspends background serial auto-connection for a given duration and releases the serial port so an external tool (like WebSerial) can flash the hardware.
+
+**Body (JSON):**
+```json
+{
+  "duration": 120
+}
+```
+*`duration` is in seconds (default `120`).*
 
 ---
 
@@ -272,7 +384,8 @@ Emitted immediately upon connection and whenever the device connection state cha
   "connected": true,
   "port": "COM15",
   "device_id": "NIZIPOSB31",
-  "firmware_id": "2.0.0"
+  "firmware_id": "2.0.0",
+  "update_available": false
 }
 ```
 
