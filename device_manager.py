@@ -382,7 +382,11 @@ class DeviceManager:
             "GET_IDLE": None,
             "GET_VOLUME": None,
             "GET_BRIGHTNESS": None,
-            "GET_BLE": None,
+            "IS_BLE_ON": None,
+            "IS_BLE_PIN_CHANGED": None,
+            "BLE_CHG_PIN": None,
+            "BLE_RESET_PIN": None,
+            "DO_BLE_MODE_ENABLE": "BLE_ON_OK",
             "START_RTIMAGE": None,
             "IMAGE_UPLOAD": "READY",
             "IMAGE_UPLOAD_2": "READY",
@@ -497,12 +501,24 @@ class DeviceManager:
     # ── Bluetooth ───────────────────────────────────────────────────────
 
     def set_ble(self, enabled: bool):
-        """Enable or disable Bluetooth (BLE_ON / BLE_OFF)."""
-        return self.send_command("BLE_ON" if enabled else "BLE_OFF")
+        """Enable or disable Bluetooth (DO_BLE_MODE_ENABLE / BLE_OFF)."""
+        return self.send_command("DO_BLE_MODE_ENABLE" if enabled else "BLE_OFF")
 
-    def get_ble(self):
-        """Query Bluetooth active status from the device."""
-        return self.send_command("GET_BLE")
+    def is_ble_on(self):
+        """Query whether BLE stack is currently running. Returns TRUE or FALSE."""
+        return self.send_command("IS_BLE_ON")
+
+    def is_ble_pin_changed(self):
+        """Query whether the user has changed the default BLE PIN. Returns TRUE or FALSE."""
+        return self.send_command("IS_BLE_PIN_CHANGED")
+
+    def change_ble_pin(self, old_pin: str, new_pin: str):
+        """Change the BLE PIN after verifying the current active PIN. Device reboots on success."""
+        return self.send_command(f"BLE_CHG_PIN**{old_pin}**{new_pin}")
+
+    def reset_ble_pin(self):
+        """Reset the BLE PIN to the default MAC-derived PIN. Device reboots on success."""
+        return self.send_command("BLE_RESET_PIN")
 
     # ── Idle mode commands ──────────────────────────────────────────────
 

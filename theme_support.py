@@ -251,9 +251,9 @@ QPushButton#secondaryBtn, QPushButton#disconnectBtn {{
 }}
 QPushButton#secondaryBtn:hover, QPushButton#disconnectBtn:hover {{ background-color: {c['secondary_hover_bg']}; border-color: {c['secondary_hover_border']}; }}
 QPushButton#dangerBtn {{ font-size: {c['font_size_base']}; padding: {c['button_padding']}; background-color: {c['danger_bg']}; color: {c['danger_text']}; border: 1px solid {c['danger_border']}; border-radius: {c['border_radius_md']}; font-weight: 500; }}
-QPushButton#dangerBtn:hover {{ filter: brightness(1.1); }}
+QPushButton#dangerBtn:hover {{ background-color: {c['danger_hover_bg'] if 'danger_hover_bg' in c else c['danger_bg']}; }}
 QPushButton#warningBtn {{ font-size: {c['font_size_base']}; padding: {c['button_padding']}; background-color: {c['warning_bg']}; color: {c['warning_text']}; border: 1px solid {c['warning_border']}; border-radius: {c['border_radius_md']}; font-weight: 500; }}
-QPushButton#warningBtn:hover {{ filter: brightness(1.1); }}
+QPushButton#warningBtn:hover {{ background-color: {c['warning_hover_bg'] if 'warning_hover_bg' in c else c['warning_bg']}; }}
 QPushButton#ghostBtn {{ font-size: {c['font_size_sm']}; padding: {c['dropdown_item_padding']}; background: transparent; color: {c['ghost_text']}; border: none; }}
 QPushButton#ghostBtn:hover {{ color: {c['ghost_hover_text']}; }}
 QRadioButton {{ font-size: {c['font_size_base']}; color: {c['text_primary']}; spacing: 8px; padding: 4px; }}
@@ -301,7 +301,22 @@ def get_dialog_stylesheet(is_light: bool) -> str:
             min-width: 120px;
         }}
         QPushButton:pressed {{
-            transform: translateY(1px);
+            padding-top: 10px;
+        }}
+        QLineEdit {{
+            font-size: {c['font_size_base']};
+            padding: {c['input_padding']};
+            border: 1px solid {c['border']};
+            border-radius: {c['border_radius_md']};
+            background-color: {c['input_bg']};
+            color: {c['text_primary']};
+        }}
+        QLineEdit:focus {{
+            border-color: {c['accent']};
+            background-color: {c['input_bg']};
+        }}
+        QLineEdit::placeholder {{
+            color: {c['placeholder']};
         }}
     """
 

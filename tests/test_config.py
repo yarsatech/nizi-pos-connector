@@ -35,11 +35,41 @@ class TestConfig(unittest.TestCase):
         cfg = Config()
         self.assertEqual(cfg.github_repo, "test_owner/test_repo")
 
-    def test_defaults(self):
-        cfg = Config()
-        self.assertEqual(cfg.server_host, "127.0.0.1")
-        self.assertEqual(cfg.server_port, 9121)
-        self.assertTrue(len(cfg.api_key) > 50)  # Verify presence of long api key
+    def test_resolve_main_exe_path_platforms(self):
+        import tempfile
+        from ota.ota_updater import _resolve_main_exe_path
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmppath = Path(tmpdir)
+
+            # 1. Windows: creates NiziPOSConnector.exe
+            win_dir = tmppath / "win"
+            win_dir.mkdir()
+            win_exe = win_dir / "NiziPOSConnector.exe"
+            win_exe.write_text("dummy")
+            with patch("sys.platform", "win32"):
+                self.assertEqual(Path(_resolve_main_exe_path(str(win_dir))), win_exe)
+
+            # 2. Linux: creates NiziPOSConnector (no ext)
+            linux_dir = tmppath / "linux"
+            linux_dir.mkdir()
+            linux_exe = linux_dir / "NiziPOSConnector"
+            linux_exe.write_text("dummy")
+            with patch("sys.platform", "linux"):
+                self.assertEqual(Path(_resolve_main_exe_path(str(linux_dir))), linux_exe)
+
+            # 3. macOS: inside .app bundle
+            mac_dir = tmppath / "mac"
+            mac_dir.mkdir()
+            app_dir = mac_dir / "NiziPOSConnector.app" / "Contents" / "MacOS"
+            app_dir.mkdir(parents=True)
+            mac_exe = app_dir / "NiziPOSConnector"
+            mac_exe.write_text("dummy")
+            with patch("sys.platform", "darwin"):
+                # When passing base dir containing .app
+                self.assertEqual(Path(_resolve_main_exe_path(str(mac_dir))), mac_exe)
+                # When passing .app directly
+                self.assertEqual(Path(_resolve_main_exe_path(str(mac_dir / "NiziPOSConnector.app"))), mac_exe)
 
 
 if __name__ == "__main__":

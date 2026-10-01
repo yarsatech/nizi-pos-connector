@@ -118,7 +118,8 @@ class TrayApp(QObject):
         tip = f"{APP_NAME} — Connected" if self._connected else f"{APP_NAME} — Disconnected"
         self._tray_icon.setToolTip(tip)
 
-    def _on_tray_activated(self, reason):
+    @pyqtSlot(QSystemTrayIcon.ActivationReason)
+    def _on_tray_activated(self, reason: QSystemTrayIcon.ActivationReason):
         """Handle tray icon click."""
         import platform
         if platform.system() == "Darwin":
@@ -126,7 +127,7 @@ class TrayApp(QObject):
             # Doing it manually here causes duplicate overlapping menus.
             return
             
-        if reason == QSystemTrayIcon.ActivationReason.Trigger:
+        if reason in (QSystemTrayIcon.ActivationReason.Trigger, QSystemTrayIcon.ActivationReason.DoubleClick):
             self._on_toggle_ui()
 
     def _on_connect(self):

@@ -251,6 +251,38 @@ class TestGetFirmwareByModel(unittest.TestCase):
             get_firmware_by_model("B31")
         self.assertIn("invalid JSON", str(ctx.exception))
 
+    @patch("ota.firmware_api.urllib.request.urlopen")
+    def test_http_error_with_envelope(self, mock_urlopen):
+        import urllib.error
+        import io
+        err_body = json.dumps({
+            "message": {
+                "success": False,
+                "error": {"code": "MODEL_NOT_FOUND"},
+                "message": "Model B99 not found"
+            }
+        }).encode("utf-8")
+        fp = io.BytesIO(err_body)
+        mock_urlopen.side_effect = urllib.error.HTTPError(
+            url="http://test", code=404, msg="Not Found", hdrs={}, fp=fp
+        )
+        with self.assertRaises(RuntimeError) as ctx:
+            get_firmware_by_model("B99")
+        self.assertIn("MODEL_NOT_FOUND", str(ctx.exception))
+        self.assertIn("Model B99 not found", str(ctx.exception))
+
+    @patch("ota.firmware_api.urllib.request.urlopen")
+    def test_http_error_non_json(self, mock_urlopen):
+        import urllib.error
+        import io
+        fp = io.BytesIO(b"Internal Server Error")
+        mock_urlopen.side_effect = urllib.error.HTTPError(
+            url="http://test", code=500, msg="Server Error", hdrs={}, fp=fp
+        )
+        with self.assertRaises(RuntimeError) as ctx:
+            get_firmware_by_model("B31")
+        self.assertIn("Firmware API request failed", str(ctx.exception))
+
 
 # ── check_update_available ────────────────────────────────────────────────────
 

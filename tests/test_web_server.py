@@ -60,9 +60,9 @@ class TestWebServerRoutes(unittest.TestCase):
 
     @patch("web_server.device")
     def test_api_get_ble(self, mock_device):
-        mock_device.get_ble.return_value = {
+        mock_device.is_ble_on.return_value = {
             "success": True,
-            "response": "BLE_ON",
+            "response": "TRUE",
             "error": None,
         }
         res = self.client.get("/api/get-ble", headers=self.headers)
@@ -70,6 +70,19 @@ class TestWebServerRoutes(unittest.TestCase):
         data = json.loads(res.data)
         self.assertTrue(data["success"])
         self.assertTrue(data["ble_on"])
+
+    @patch("web_server.device")
+    def test_api_get_ble_false(self, mock_device):
+        mock_device.is_ble_on.return_value = {
+            "success": True,
+            "response": "FALSE",
+            "error": None,
+        }
+        res = self.client.get("/api/get-ble", headers=self.headers)
+        self.assertEqual(res.status_code, 200)
+        data = json.loads(res.data)
+        self.assertTrue(data["success"])
+        self.assertFalse(data["ble_on"])
 
     @patch("web_server.device")
     def test_api_get_idle(self, mock_device):
@@ -89,7 +102,7 @@ class TestWebServerRoutes(unittest.TestCase):
     def test_api_settings_get(self, mock_device):
         mock_device.get_volume.return_value = {"success": True, "response": "VOLUME**30", "error": None}
         mock_device.get_brightness.return_value = {"success": True, "response": "BRIGHTNESS**40", "error": None}
-        mock_device.get_ble.return_value = {"success": True, "response": "BLE_OFF", "error": None}
+        mock_device.is_ble_on.return_value = {"success": True, "response": "FALSE", "error": None}
         mock_device.get_idle.return_value = {"success": True, "response": "MODE:CYCLE,img1=IMG1,time1=60000,img2=IMG2,time2=60000", "error": None}
 
         res = self.client.get("/api/settings", headers=self.headers)

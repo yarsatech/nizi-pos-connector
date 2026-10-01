@@ -282,9 +282,9 @@ def api_settings():
                 except ValueError:
                     pass
         # 3. BLE
-        res_ble = device.get_ble()
+        res_ble = device.is_ble_on()
         if res_ble.get("success") and res_ble.get("response"):
-            settings["ble"] = (res_ble["response"] == "BLE_ON")
+            settings["ble"] = (res_ble["response"] == "TRUE")
             
         # 4. Idle Mode
         res_idle = device.get_idle()
@@ -479,10 +479,10 @@ def api_get_brightness():
 
 @app.route("/api/get-ble", methods=["GET", "POST"])
 def api_get_ble():
-    """Query Bluetooth active status from the device."""
-    result = device.get_ble()
+    """Query whether BLE stack is currently running."""
+    result = device.is_ble_on()
     if result.get("success") and result.get("response"):
-        result["ble_on"] = (result["response"] == "BLE_ON")
+        result["ble_on"] = (result["response"] == "TRUE")
     return jsonify(result)
 
 

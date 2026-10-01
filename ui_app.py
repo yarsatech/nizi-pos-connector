@@ -15,9 +15,9 @@ from PyQt6.QtWidgets import (
     QComboBox, QLineEdit, QTextEdit, QFileDialog,
     QFrame, QApplication, QStackedWidget, QSizePolicy,
     QRadioButton, QButtonGroup, QDialog, QMessageBox,
-    QSlider, QListView
+    QSlider, QListView, QStyledItemDelegate
 )
-from PyQt6.QtCore import Qt, pyqtSignal, pyqtSlot, QUrl
+from PyQt6.QtCore import Qt, pyqtSignal, pyqtSlot, QUrl, QEvent, QTimer
 from PyQt6.QtGui import QFont, QGuiApplication, QIcon, QDesktopServices, QPixmap
 
 from config import APP_NAME
@@ -28,13 +28,32 @@ logger = logging.getLogger(__name__)
 
 # Note: we intentionally do not show app version inside the UI.
 
-# ── Modern Stylesheet ────────────────────────────────────────────────────
+# ── Clean & Scroll-Safe ComboBox ─────────────────────────────────────────
 
+class SafeComboBox(QComboBox):
+    """A clean, scroll-safe QComboBox that:
+    - Never steals focus automatically on window activation or container show (ClickFocus only).
+    - Automatically clears focus once popup closes or an item is picked so focus rings don't linger.
+    - Completely ignores mouse wheel scrolling when the popup is closed, allowing parent scroll areas
+      to scroll smoothly without accidentally modifying dropdown selections.
+    - Uses styled QListView and QStyledItemDelegate for consistent theme rendering.
+    """
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setFocusPolicy(Qt.FocusPolicy.ClickFocus)
+        self.setView(QListView())
+        self.setItemDelegate(QStyledItemDelegate(self))
+        self.activated.connect(lambda _: self.clearFocus())
 
+    def hidePopup(self):
+        super().hidePopup()
+        self.clearFocus()
 
-
-
-
+    def wheelEvent(self, event):
+        if self.view() and self.view().isVisible():
+            super().wheelEvent(event)
+        else:
+            event.ignore()
 
 
 class TrayFlyout(QWidget):
@@ -53,6 +72,7 @@ class TrayFlyout(QWidget):
 
         self.setWindowTitle(APP_NAME)
         self.setObjectName("mainWindow")
+        self.setFocusPolicy(Qt.FocusPolicy.ClickFocus)
         self.setMinimumWidth(400)
         self.setMaximumWidth(460)
         
@@ -228,8 +248,7 @@ class TrayFlyout(QWidget):
         port_header.addWidget(self.btn_rescan)
         port_layout.addLayout(port_header)
 
-        self.port_dropdown = QComboBox()
-        self.port_dropdown.setView(QListView())
+        self.port_dropdown = SafeComboBox()
         self.port_dropdown.setPlaceholderText("Select a port...")
         port_layout.addWidget(self.port_dropdown)
         
@@ -256,8 +275,7 @@ class TrayFlyout(QWidget):
         section_row.addWidget(section_lbl)
         section_row.addStretch()
 
-        self.page_selector = QComboBox()
-        self.page_selector.setView(QListView())
+        self.page_selector = SafeComboBox()
         self.page_selector.addItems([
             "Quick Actions",
             "Device Config",
@@ -269,8 +287,6 @@ class TrayFlyout(QWidget):
         ])
         self.page_selector.setMinimumWidth(120)
         self.page_selector.setMaxVisibleItems(10)
-        from PyQt6.QtWidgets import QStyledItemDelegate
-        self.page_selector.setItemDelegate(QStyledItemDelegate(self.page_selector))
         self.page_selector.currentIndexChanged.connect(self._switch_page)
         section_row.addWidget(self.page_selector)
         commands_layout.addLayout(section_row)
@@ -306,6 +322,17 @@ class TrayFlyout(QWidget):
         
         root.addLayout(footer_layout)
 
+        # Prevent buttons and radio buttons from holding persistent focus or dotted outlines
+        for btn in self.findChildren(QPushButton):
+            btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        for radio in self.findChildren(QRadioButton):
+            radio.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+
+        # Clear focus when clicking on background/cards
+        scroll_content.installEventFilter(self)
+        card.installEventFilter(self)
+        self.commands_container.installEventFilter(self)
+
     # ── Page Builders ────────────────────────────────────────────────────
 
     def _make_field_label(self, text):
@@ -320,8 +347,7 @@ class TrayFlyout(QWidget):
         layout.setSpacing(4)
 
         layout.addWidget(self._make_field_label("Type"))
-        self.status_type = QComboBox()
-        self.status_type.setView(QListView())
+        self.status_type = SafeComboBox()
         self.status_type.addItems([
             "INFO — Information",
             "PASS — Payment Successful",
@@ -446,8 +472,7 @@ class TrayFlyout(QWidget):
         self.wallpaper_file_path = None
 
         wall_card_layout.addWidget(self._make_field_label("Wallpaper Slot"))
-        self.wallpaper_slot = QComboBox()
-        self.wallpaper_slot.setView(QListView())
+        self.wallpaper_slot = SafeComboBox()
         self.wallpaper_slot.addItems(["IMG1 — Primary", "IMG2 — Secondary (for Cycle mode)"])
         wall_card_layout.addWidget(self.wallpaper_slot)
 
@@ -474,8 +499,7 @@ class TrayFlyout(QWidget):
         wall_card_layout.addWidget(self.wallpaper_label)
 
         wall_card_layout.addWidget(self._make_field_label("Screen Size"))
-        self.wallpaper_size = QComboBox()
-        self.wallpaper_size.setView(QListView())
+        self.wallpaper_size = SafeComboBox()
         self.wallpaper_size.addItems(["B30/B31 — 2.8 inch (240×320)", "B32/B33 — 3.5 inch (320×480)"])
         wall_card_layout.addWidget(self.wallpaper_size)
 
@@ -523,8 +547,7 @@ class TrayFlyout(QWidget):
         temp_card_layout.addWidget(self.preview_label)
 
         temp_card_layout.addWidget(self._make_field_label("Screen Size"))
-        self.preview_size = QComboBox()
-        self.preview_size.setView(QListView())
+        self.preview_size = SafeComboBox()
         self.preview_size.addItems(["B30/B31 — 2.8 inch (240×320)", "B32/B33 — 3.5 inch (320×480)"])
         temp_card_layout.addWidget(self.preview_size)
 
@@ -545,8 +568,7 @@ class TrayFlyout(QWidget):
         layout.setSpacing(4)
 
         layout.addWidget(self._make_field_label("Idle Mode"))
-        self.idle_mode_dropdown = QComboBox()
-        self.idle_mode_dropdown.setView(QListView())
+        self.idle_mode_dropdown = SafeComboBox()
         self.idle_mode_dropdown.addItems([
             "SLEEP_WAKE — Sleep/Wake Cycle (Default)",
             "SINGLE — Static Image",
@@ -563,8 +585,7 @@ class TrayFlyout(QWidget):
         self.idle_fields_layout.setSpacing(8)
 
         self.idle_img1_label = self._make_field_label("Image Name")
-        self.idle_img1 = QComboBox()
-        self.idle_img1.setView(QListView())
+        self.idle_img1 = SafeComboBox()
         self.idle_img1.addItems(["IMG1", "IMG2"])
         self.idle_fields_layout.addWidget(self.idle_img1_label)
         self.idle_fields_layout.addWidget(self.idle_img1)
@@ -580,8 +601,7 @@ class TrayFlyout(QWidget):
         self.idle_fields_layout.addWidget(self.idle_wake_sec)
 
         self.idle_img2_label = self._make_field_label("Image 2 Name")
-        self.idle_img2 = QComboBox()
-        self.idle_img2.setView(QListView())
+        self.idle_img2 = SafeComboBox()
         self.idle_img2.addItems(["IMG1", "IMG2"])
         self.idle_img2.setCurrentIndex(1)  # Default to IMG2
         self.idle_fields_layout.addWidget(self.idle_img2_label)
@@ -714,6 +734,19 @@ class TrayFlyout(QWidget):
         ble_row.addWidget(self.btn_ble_off)
         layout.addLayout(ble_row)
 
+        # BLE PIN management row
+        ble_pin_row = QHBoxLayout()
+        self.btn_ble_change_pin = QPushButton("🔑  Change PIN")
+        self.btn_ble_change_pin.setObjectName("secondaryBtn")
+        self.btn_ble_change_pin.clicked.connect(self._show_change_pin_dialog)
+        ble_pin_row.addWidget(self.btn_ble_change_pin)
+
+        self.btn_ble_reset_pin = QPushButton("🔄  Reset PIN")
+        self.btn_ble_reset_pin.setObjectName("secondaryBtn")
+        self.btn_ble_reset_pin.clicked.connect(self._confirm_reset_pin)
+        ble_pin_row.addWidget(self.btn_ble_reset_pin)
+        layout.addLayout(ble_pin_row)
+
         self.ble_feedback = QLabel("")
         self.ble_feedback.setObjectName("instructionLabel")
         self.ble_feedback.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -728,8 +761,7 @@ class TrayFlyout(QWidget):
 
         # ── Language Firmware ───────────────────────────────────────────
         layout.addWidget(self._make_field_label("Language Firmware Update"))
-        self.language_dropdown = QComboBox()
-        self.language_dropdown.setView(QListView())
+        self.language_dropdown = SafeComboBox()
         self.language_dropdown.addItem("Loading languages...")
         self.language_dropdown.setEnabled(False)
         layout.addWidget(self.language_dropdown)
@@ -800,6 +832,7 @@ class TrayFlyout(QWidget):
         self.log_display = QTextEdit()
         self.log_display.setObjectName("logDisplay")
         self.log_display.setReadOnly(True)
+        self.log_display.setFocusPolicy(Qt.FocusPolicy.ClickFocus)
         self.log_display.setMinimumHeight(120)
         layout.addWidget(self.log_display)
 
@@ -873,6 +906,7 @@ class TrayFlyout(QWidget):
             self.resize(self.width(), min(ideal_h, self.maximumHeight()))
         else:
             self.adjustSize()
+        self._clear_all_focus()
 
     # ── Command logic ────────────────────────────────────────────────────
 
@@ -1216,10 +1250,10 @@ class TrayFlyout(QWidget):
                     pass
                     
         # 3. Bluetooth (BLE)
-        res_ble = self.device.get_ble()
+        res_ble = self.device.is_ble_on()
         if res_ble.get("success") and res_ble.get("response"):
             resp = res_ble["response"]
-            settings["ble"] = (resp == "BLE_ON")
+            settings["ble"] = (resp == "TRUE")
             
         # 4. Idle Mode
         res_idle = self.device.get_idle()
@@ -1228,6 +1262,11 @@ class TrayFlyout(QWidget):
             parsed_idle = self._parse_get_idle(resp)
             if parsed_idle:
                 settings["idle"] = parsed_idle
+
+        # 5. BLE PIN status
+        res_pin_changed = self.device.is_ble_pin_changed()
+        if res_pin_changed.get("success") and res_pin_changed.get("response"):
+            settings["ble_pin_changed"] = (res_pin_changed["response"] == "TRUE")
 
         self.device_settings_loaded.emit(settings)
 
@@ -1253,6 +1292,14 @@ class TrayFlyout(QWidget):
         # Update Bluetooth (BLE) State
         if "ble" in settings:
             self._update_ble_buttons_style(settings["ble"])
+            self._ble_is_on = settings["ble"]
+
+        # Store BLE PIN state for popup logic
+        if "ble_pin_changed" in settings:
+            self._ble_pin_changed = settings["ble_pin_changed"]
+            # Trigger BLE PIN warning check if window is currently visible
+            if getattr(self, '_is_visible', False):
+                QTimer.singleShot(300, self._check_ble_pin_warning)
             
         # Update Idle mode selection and its fields
         if "idle" in settings:
@@ -1325,7 +1372,6 @@ class TrayFlyout(QWidget):
         label.setStyleSheet(f"color: {color};")
         label.setVisible(True)
         # Auto-hide after 3 seconds
-        from PyQt6.QtCore import QTimer
         QTimer.singleShot(3000, lambda: label.setVisible(False))
 
 
@@ -1496,6 +1542,7 @@ class TrayFlyout(QWidget):
 
             self.commands_container.setVisible(True)
             self.port_selection_container.setVisible(False)
+            QTimer.singleShot(10, self._clear_all_focus)
             if hasattr(self, 'preview_file_path') and self.preview_file_path:
                 self.btn_upload_preview.setEnabled(True)
             if hasattr(self, 'wallpaper_file_path') and self.wallpaper_file_path:
@@ -1522,11 +1569,11 @@ class TrayFlyout(QWidget):
             is_manual = self.radio_manual.isChecked()
             self.port_selection_container.setVisible(is_manual)
             self.instruction_label.setVisible(not is_manual)
+            QTimer.singleShot(10, self._clear_all_focus)
             
             if is_manual:
                 self._rescan_ports()
 
-        from PyQt6.QtCore import QTimer
         QTimer.singleShot(20, self._adjust_window_size)
 
     def _adjust_window_size(self):
@@ -1587,8 +1634,76 @@ class TrayFlyout(QWidget):
     def showEvent(self, event):
         super().showEvent(event)
         self._refresh_logs()
-        from PyQt6.QtCore import QTimer
         QTimer.singleShot(20, self._adjust_window_size)
+        QTimer.singleShot(50, self._clear_all_focus)
+        # Check BLE PIN warning when user opens the window (data may already be loaded)
+        QTimer.singleShot(400, self._check_ble_pin_warning)
+
+    def _check_ble_pin_warning(self):
+        """Show a warning popup if BLE is ON and PIN hasn't been changed from default."""
+        if not self.device.connected:
+            return
+        if not getattr(self, '_ble_is_on', False):
+            return
+        if getattr(self, '_ble_pin_changed', True):  # default True = don't warn
+            return
+
+        from ui_components import ModernPromptDialog
+        dlg = ModernPromptDialog(
+            parent=self,
+            title="BLE Security Warning",
+            headline_text="⚠ Default BLE PIN Active",
+            info_text="Your BLE PIN is currently set to the default."
+                      "\n\nFor security, we recommend changing it.\n\n"
+                      "Would you like to change your BLE PIN now?"
+        )
+        dlg.exec()
+        if dlg.is_accepted:
+            self._show_change_pin_dialog()
+
+    def _show_change_pin_dialog(self):
+        """Show dialog to change BLE PIN."""
+        from ui_components import BleChangePinDialog
+        dlg = BleChangePinDialog(parent=self)
+        dlg.exec()
+        if dlg.old_pin and dlg.new_pin:
+            res = self.device.change_ble_pin(dlg.old_pin, dlg.new_pin)
+            resp = (res.get("response") or "").upper()
+            is_err = any(err_word in resp for err_word in ("ERROR", "FAIL", "WRONG", "INVALID"))
+            if res.get("success") and not is_err:
+                self._show_feedback(self.ble_feedback,
+                    "✓ BLE PIN changed. Device is rebooting...",
+                    self.theme_tokens["success_text"])
+            else:
+                err = res.get("response") or res.get("error") or "Unknown error"
+                self._show_feedback(self.ble_feedback,
+                    f"✗ PIN change failed: {err}",
+                    self.theme_tokens["warning_text"])
+
+    def _confirm_reset_pin(self):
+        """Show confirmation dialog before resetting BLE PIN to default."""
+        from ui_components import ModernPromptDialog
+        dlg = ModernPromptDialog(
+            parent=self,
+            title="Reset BLE PIN",
+            headline_text="Reset BLE PIN?",
+            info_text="This will reset your BLE PIN back to the default MAC-derived PIN. "
+                      "The device will reboot.\n\nAre you sure?"
+        )
+        dlg.exec()
+        if dlg.is_accepted:
+            res = self.device.reset_ble_pin()
+            resp = (res.get("response") or "").upper()
+            is_err = any(err_word in resp for err_word in ("ERROR", "FAIL", "WRONG", "INVALID"))
+            if res.get("success") and not is_err:
+                self._show_feedback(self.ble_feedback,
+                    "✓ BLE PIN reset. Device is rebooting...",
+                    self.theme_tokens["success_text"])
+            else:
+                err = res.get("response") or res.get("error") or "Unknown error"
+                self._show_feedback(self.ble_feedback,
+                    f"✗ PIN reset failed: {err}",
+                    self.theme_tokens["warning_text"])
 
     # ── Window management ────────────────────────────────────────────────
 
@@ -1619,12 +1734,31 @@ class TrayFlyout(QWidget):
         self.raise_()
         self.activateWindow()
         self._is_visible = True
+        self._clear_all_focus()
+        QTimer.singleShot(50, self._clear_all_focus)
         
         # Force foreground focus on macOS for background agents (LSUIElement=True)
         import platform
         if platform.system() == "Darwin":
             import os
             os.system("osascript -e 'tell application \"System Events\" to set frontmost of every process whose name is \"NiziPOSConnector\" to true' >/dev/null 2>&1")
+
+    def _clear_all_focus(self):
+        fw = QApplication.focusWidget()
+        if fw and fw is not self:
+            fw.clearFocus()
+        self.setFocus()
+
+    def mousePressEvent(self, event):
+        self._clear_all_focus()
+        super().mousePressEvent(event)
+
+    def eventFilter(self, obj, event):
+        if event.type() == QEvent.Type.MouseButtonPress:
+            from PyQt6.QtWidgets import QLineEdit, QTextEdit
+            if not isinstance(obj, (QLineEdit, QTextEdit, SafeComboBox)):
+                self._clear_all_focus()
+        return super().eventFilter(obj, event)
 
     def hide(self):
         super().hide()

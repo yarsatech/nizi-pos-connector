@@ -11,6 +11,7 @@ import re
 import logging
 import urllib.request
 import urllib.parse
+import urllib.error
 import json
 from typing import Optional
 
@@ -109,6 +110,19 @@ def get_firmware_by_model(model: str) -> dict:
         )
         with urllib.request.urlopen(req, timeout=_REQUEST_TIMEOUT) as resp:
             raw = resp.read().decode("utf-8", errors="ignore")
+    except urllib.error.HTTPError as exc:
+        try:
+            raw = exc.read().decode("utf-8", errors="ignore")
+            payload = json.loads(raw)
+            envelope = payload.get("message", {})
+            if isinstance(envelope, dict) and not envelope.get("success"):
+                err = envelope.get("error") or {}
+                code = err.get("code", "UNKNOWN") if isinstance(err, dict) else str(err)
+                msg = envelope.get("message", "Unknown error")
+                raise RuntimeError(f"Firmware API error [{code}]: {msg}") from exc
+        except (json.JSONDecodeError, AttributeError):
+            pass
+        raise RuntimeError(f"Firmware API request failed: {exc}") from exc
     except Exception as exc:
         raise RuntimeError(f"Firmware API request failed: {exc}") from exc
 

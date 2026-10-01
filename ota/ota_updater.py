@@ -37,14 +37,26 @@ def _configure_logger(log_file: Optional[str]):
 
 def _show_error_box(text: str, caption: str = OTA_HELPER_CAPTION):
     """
-    Show a Windows-only message box (best-effort).
+    Show a platform-appropriate error message box (best-effort).
     """
-    try:
-        import ctypes
+    if sys.platform.startswith("win"):
+        try:
+            import ctypes
 
-        ctypes.windll.user32.MessageBoxW(None, text, caption, 0x10)
-    except Exception:
-        pass
+            ctypes.windll.user32.MessageBoxW(None, text, caption, 0x10)
+        except Exception:
+            pass
+    elif sys.platform.startswith("darwin"):
+        try:
+            clean_text = text.replace('"', '\\"')
+            clean_caption = caption.replace('"', '\\"')
+            subprocess.run(
+                ["osascript", "-e", f'display alert "{clean_caption}" message "{clean_text}" as critical'],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+        except Exception:
+            pass
 
 
 def _safe_delete_entry(path: str):
@@ -60,15 +72,35 @@ def _resolve_main_exe_path(base_dir: str) -> Optional[str]:
         return None
     if sys.platform.startswith("win"):
         candidate = f"{name}.exe"
+        candidate_path = os.path.join(base_dir, candidate)
+        if os.path.isfile(candidate_path):
+            return candidate_path
     elif sys.platform.startswith("linux"):
         candidate = name
-    else:
-        # macOS path resolution will be added later.
-        return None
-    candidate_path = os.path.join(base_dir, candidate)
-    if os.path.exists(candidate_path):
-        return candidate_path
+        candidate_path = os.path.join(base_dir, candidate)
+        if os.path.isfile(candidate_path):
+            return candidate_path
+    elif sys.platform.startswith("darwin"):
+        candidates = [
+            name,
+            os.path.join(f"{name}.app", "Contents", "MacOS", name),
+            os.path.join("Contents", "MacOS", name),
+        ]
+        for cand in candidates:
+            candidate_path = os.path.join(base_dir, cand)
+            if os.path.isfile(candidate_path):
+                return candidate_path
     return None
+
+
+def _restart_app(exe_path: str, target_dir: str):
+    """Restart the application across platforms."""
+    if sys.platform.startswith("darwin"):
+        app_idx = exe_path.find(".app")
+        if app_idx != -1:
+            subprocess.Popen(["open", exe_path[:app_idx + 4]])
+            return
+    subprocess.Popen([exe_path], cwd=target_dir)
 
 
 def _move_with_retry(src: str, dst: str, *, retries: int = 25, delay_s: float = 0.2):
@@ -265,7 +297,7 @@ def main():
 
         # Restart new version.
         logger.info("Restarting updated app...")
-        subprocess.Popen([main_exe_path], cwd=target_dir)
+        _restart_app(main_exe_path, target_dir)
         return 0
     except Exception as e:
         logger.exception("OTA update failed")
@@ -290,7 +322,7 @@ def main():
                 # Try to launch the current (restored) version.
                 restored_main = _resolve_main_exe_path(target_dir) or os.path.join(target_dir, MAIN_EXE_BASENAME)
                 if os.path.exists(restored_main):
-                    subprocess.Popen([restored_main], cwd=target_dir)
+                    _restart_app(restored_main, target_dir)
             except Exception:
                 pass
             finally:

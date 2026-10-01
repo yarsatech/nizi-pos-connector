@@ -104,7 +104,7 @@ class TestDeviceManagerCommands(unittest.TestCase):
 
     def test_set_ble(self):
         self.device.set_ble(True)
-        self.device.send_command.assert_called_with("BLE_ON")
+        self.device.send_command.assert_called_with("DO_BLE_MODE_ENABLE")
         self.device.set_ble(False)
         self.device.send_command.assert_called_with("BLE_OFF")
 
@@ -140,9 +140,9 @@ class TestDeviceManagerCommands(unittest.TestCase):
         self.device.get_brightness()
         self.device.send_command.assert_called_with("GET_BRIGHTNESS")
 
-    def test_get_ble(self):
-        self.device.get_ble()
-        self.device.send_command.assert_called_with("GET_BLE")
+    def test_is_ble_on(self):
+        self.device.is_ble_on()
+        self.device.send_command.assert_called_with("IS_BLE_ON")
 
     def test_get_idle(self):
         self.device.get_idle()
@@ -160,6 +160,33 @@ class TestDeviceManagerCommands(unittest.TestCase):
         self.assertEqual(self.device._get_expected_ack("RESET"), "RESET_OK")
         self.assertEqual(self.device._get_expected_ack("VOLUME**80"), "VOLUME_OK")
         self.assertEqual(self.device._get_expected_ack("PASS**SUCCESS**OK"), "PASS_OK")
+        # BLE PIN management commands should return None (query/variable response)
+        self.assertIsNone(self.device._get_expected_ack("IS_BLE_PIN_CHANGED"))
+        self.assertIsNone(self.device._get_expected_ack("BLE_CHG_PIN"))
+        self.assertIsNone(self.device._get_expected_ack("BLE_RESET_PIN"))
+        self.assertEqual(
+            self.device._get_expected_ack("DO_BLE_MODE_ENABLE"),
+            "BLE_ON_OK"
+        )
+
+
+class TestDeviceManagerBlePinCommands(unittest.TestCase):
+
+    def setUp(self):
+        self.device = DeviceManager()
+        self.device.send_command = MagicMock(return_value={"success": True, "error": None})
+
+    def test_is_ble_pin_changed(self):
+        self.device.is_ble_pin_changed()
+        self.device.send_command.assert_called_with("IS_BLE_PIN_CHANGED")
+
+    def test_change_ble_pin(self):
+        self.device.change_ble_pin("1234", "5678")
+        self.device.send_command.assert_called_with("BLE_CHG_PIN**1234**5678")
+
+    def test_reset_ble_pin(self):
+        self.device.reset_ble_pin()
+        self.device.send_command.assert_called_with("BLE_RESET_PIN")
 
 
 if __name__ == "__main__":
