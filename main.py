@@ -8,6 +8,17 @@ import logging
 import os
 import sys
 
+# ── DLL Search Path Lockdown (NIZI-005) ──────────────────────────────────
+if os.name == "nt":
+    try:
+        import ctypes
+        # Remove current working directory from DLL search order
+        ctypes.windll.kernel32.SetDllDirectoryW("")
+        # Restrict DLL loading to System32 and Application directory
+        ctypes.windll.kernel32.SetDefaultDllDirectories(0x00000800 | 0x00000200)
+    except Exception:
+        pass
+
 # ── Logging ──────────────────────────────────────────────────────────────
 
 from config import APP_NAME, APP_VERSION, config

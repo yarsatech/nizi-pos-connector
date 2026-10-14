@@ -14,9 +14,12 @@ from flask_socketio import SocketIO
 
 from theme_support import get_web_theme_css, prefers_light_theme
 
-from device_manager import DeviceManager
+from device_manager import DeviceManager, validate_serial_frame
+
+import secrets
 
 from config import config
+from security import constant_time_compare
 from ota.firmware_api import get_languages, build_update_url, extract_model_code
 
 logger = logging.getLogger(__name__)
@@ -24,11 +27,9 @@ logger = logging.getLogger(__name__)
 # ── Globals ──────────────────────────────────────────────────────────────
 
 app = Flask(__name__, static_folder="static", static_url_path="/static")
-app.config["SECRET_KEY"] = config.api_key
+app.config["SECRET_KEY"] = config.api_key or secrets.token_hex(32)
 app.config["MAX_CONTENT_LENGTH"] = 5 * 1024 * 1024  # 5MB limit
 
-# Restrict CORS to localhost
-# Use 'threading' async mode which is the most compatible with PyInstaller standard builds
 socketio = SocketIO(
     app, 
     cors_allowed_origins="*", 
@@ -37,34 +38,87 @@ socketio = SocketIO(
 
 device = DeviceManager()
 
-# ── Authentication ───────────────────────────────────────────────────────
+# ── Security & CORS Engine ───────────────────────────────────────────────
+
+PUBLIC_PATHS = frozenset({"/", "/favicon.ico"})
+PUBLIC_PREFIXES = ("/assets/", "/static/")
+
+
+ALLOWED_EXTENSION_SCHEMES = (
+    "chrome-extension://",
+    "moz-extension://",
+    "safari-extension://",
+    "safari-web-extension://",
+    "ms-browser-extension://",
+)
+
+
+def is_origin_allowed(origin: str | None) -> bool:
+    """
+    Evaluate Origin against active CORS configuration.
+    Non-browser (curl, desktop) requests have no Origin and are permitted.
+    All browser extensions (Chrome, Firefox, Safari, Edge) are permitted and authenticated via API key.
+    In 'allow_all' mode, all origins are permitted.
+    In 'allowlist' mode, origin must match configured allowed list (case-insensitive).
+    """
+    if not origin:
+        return True
+    clean_origin = origin.rstrip("/").lower()
+    if clean_origin.startswith(ALLOWED_EXTENSION_SCHEMES):
+        return True
+    if config.cors_mode == "allow_all":
+        return True
+    allowed = [o.rstrip("/").lower() for o in config.cors_allowed_origins]
+    return clean_origin in allowed
+
 
 @app.before_request
-def require_api_key():
-    """Verify X-API-Key header for all /api/ requests."""
-    # Skip auth for CORS preflight (OPTIONS) requests
-    if request.method == "OPTIONS":
-        return
+def enforce_security_and_cors():
+    """
+    1. Reject requests from unauthorized Origins (CORS lockdown).
+    2. Enforce default-deny authentication on all non-public endpoints.
+    """
+    origin = request.headers.get("Origin")
+    if origin and not is_origin_allowed(origin):
+        logger.warning(
+            "Blocked request from unauthorized Origin: %s (mode: %s)",
+            origin,
+            config.cors_mode,
+        )
+        if request.method == "OPTIONS":
+            return "", 403
+        return jsonify({"success": False, "error": "Origin not allowed by policy"}), 403
 
-    if request.path.startswith("/api/"):
-        # Check header
-        api_key = request.headers.get("X-API-Key")
-        if api_key != config.api_key:
-            logger.warning(f"Unauthorized API request to {request.path} from {request.remote_addr}")
-            return jsonify({"success": False, "error": "Unauthorized"}), 401
+    if request.method == "OPTIONS":
+        return None
+
+    # Public static and asset paths
+    if request.path in PUBLIC_PATHS or any(request.path.startswith(p) for p in PUBLIC_PREFIXES):
+        return None
+
+    # Enforce API key authentication (default-deny)
+    expected_key = config.api_key
+    if not expected_key:
+        logger.error("API Key unreadable or uninitialized; failing closed")
+        return jsonify({"success": False, "error": "Server credential unavailable"}), 503
+
+    provided_key = request.headers.get("X-API-Key")
+    if not constant_time_compare(provided_key, expected_key):
+        logger.warning("Unauthorized request to %s from %s", request.path, request.remote_addr)
+        return jsonify({"success": False, "error": "Unauthorized"}), 401
+
+    return None
 
 
 @app.after_request
 def add_cors_headers(response):
-    """Add CORS headers to all responses to allow interaction with any origin."""
-    origin = request.headers.get('Origin')
-    if origin:
-        # We allow any origin to connect, as long as it provides the correct API key.
+    """Reflect allowed Origin without exposing credentials."""
+    origin = request.headers.get("Origin")
+    if origin and is_origin_allowed(origin):
         response.headers["Access-Control-Allow-Origin"] = origin
         response.headers["Access-Control-Allow-Headers"] = "X-API-Key, Content-Type, Authorization"
         response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS, PUT, DELETE"
-        response.headers["Access-Control-Allow-Credentials"] = "true"
-        
+        response.headers["Vary"] = "Origin"
     return response
 
 
@@ -95,13 +149,14 @@ def favicon():
 def assets_file(filename: str):
     return send_from_directory("assets", filename)
 
-# Lightweight client config for UI (no API-key required).
 @app.route("/client-config")
 def client_config():
     return jsonify(
         {
             "contact_url": config.contact_url,
             "whatsapp_url": config.whatsapp_url,
+            "cors_allowed_origins": config.cors_allowed_origins,
+            "cors_mode": config.cors_mode,
         }
     )
 
@@ -147,13 +202,14 @@ def api_command():
     command = data.get("command")
     if not isinstance(command, str) or not command.strip():
         return jsonify({"success": False, "error": "Invalid or missing command."}), 400
-    
-    # Basic sanitization: check for allowed characters if needed
-    # For now just ensure it's not too long
-    if len(command) > 512:
-         return jsonify({"success": False, "error": "Command too long."}), 400
 
-    result = device.send_command(command.strip())
+    try:
+        clean_cmd = validate_serial_frame(command)
+    except ValueError as err:
+        logger.warning("Rejected invalid command: %s", err)
+        return jsonify({"success": False, "error": str(err)}), 400
+
+    result = device.send_command(clean_cmd)
     return jsonify(result)
 
 
@@ -554,22 +610,39 @@ def api_ble():
 
 @socketio.on("connect")
 def ws_connect(auth=None):
-    """Verify API token on SocketIO connection."""
-    if not auth or auth.get("token") != config.api_key:
-        logger.warning(f"Unauthorized SocketIO connection attempt from {request.remote_addr}")
-        return False  # Disconnects the client
-    
+    """Verify origin and API token on SocketIO connection."""
+    origin = request.headers.get("Origin")
+    if origin and not is_origin_allowed(origin):
+        logger.warning("Rejected SocketIO connection from disallowed Origin: %s", origin)
+        return False
+
+    token = (auth or {}).get("token") or request.args.get("token")
+    if not token or not constant_time_compare(token, config.api_key):
+        logger.warning("Unauthorized SocketIO connection attempt from %s", request.remote_addr)
+        return False
+
     socketio.emit(
         "device_status",
-        {"connected": device.connected, "port": device.port, "device_id": device.device_id, "firmware_id": device.firmware_id, "update_available": (device.firmware_update_info or {}).get("update_available", False)},
+        {
+            "connected": device.connected,
+            "port": device.port,
+            "device_id": device.device_id,
+            "firmware_id": device.firmware_id,
+            "update_available": (device.firmware_update_info or {}).get("update_available", False),
+        },
     )
 
 
 @socketio.on("send_command")
 def ws_send_command(data):
-    command = data.get("command", "")
-    result = device.send_command(command)
-    socketio.emit("command_result", {"command": command, **result})
+    command = (data or {}).get("command", "")
+    try:
+        clean_cmd = validate_serial_frame(command)
+    except ValueError as err:
+        socketio.emit("command_result", {"command": command, "success": False, "error": str(err)})
+        return
+    result = device.send_command(clean_cmd)
+    socketio.emit("command_result", {"command": clean_cmd, **result})
 
 
 # ── Server lifecycle ────────────────────────────────────────────────────
@@ -581,7 +654,15 @@ def start_server(host=None, port=None):
         h = host or config.server_host
         p = port or config.server_port
         logger.info(f"Starting web server on {h}:{p}")
-        # When frozen, we want to ensure we don't accidentally use reloader
+        # Production WSGI server (Waitress) is always used
+        try:
+            import waitress
+            logger.info(f"Serving via production Waitress WSGI server on {h}:{p}")
+            waitress.serve(app, host=h, port=p, threads=6, ident=None)
+            return
+        except ImportError:
+            logger.warning("Waitress not available; falling back to SocketIO engine.")
+        # When running SocketIO engine with simple-websocket support
         socketio.run(app, host=h, port=p, use_reloader=False, allow_unsafe_werkzeug=True)
     except Exception as e:
         logger.error(f"CRITICAL: Web server failed to start: {e}", exc_info=True)

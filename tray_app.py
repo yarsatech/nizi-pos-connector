@@ -118,8 +118,7 @@ class TrayApp(QObject):
         tip = f"{APP_NAME} — Connected" if self._connected else f"{APP_NAME} — Disconnected"
         self._tray_icon.setToolTip(tip)
 
-    @pyqtSlot(QSystemTrayIcon.ActivationReason)
-    def _on_tray_activated(self, reason: QSystemTrayIcon.ActivationReason):
+    def _on_tray_activated(self, reason):
         """Handle tray icon click."""
         import platform
         if platform.system() == "Darwin":
@@ -150,6 +149,12 @@ class TrayApp(QObject):
         if self._ui_app:
             self._ui_app.toggle()
 
+    def _on_settings(self):
+        """Menu: Show Settings dialog."""
+        from ui_components import SettingsDialog
+        dlg = SettingsDialog()
+        dlg.exec()
+
     def _on_exit(self):
         """Menu: Quit the application."""
         logger.info("Tray: quit requested")
@@ -164,9 +169,13 @@ class TrayApp(QObject):
         show_action.triggered.connect(self._on_toggle_ui)
         show_action.setCheckable(False)
         menu.addAction(show_action)
-        
+
+        settings_action = QAction("Settings...", self)
+        settings_action.triggered.connect(self._on_settings)
+        menu.addAction(settings_action)
+
         menu.addSeparator()
-        
+
         connect_action = QAction("Connect Device", self)
         connect_action.triggered.connect(self._on_connect)
         menu.addAction(connect_action)

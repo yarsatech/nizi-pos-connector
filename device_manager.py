@@ -34,6 +34,49 @@ IMAGE_READY = b"R"
 CH340_VID = 0x1A86
 CH340_PIDS = [0x7523, 0x5523, 0x5512, 0x7522]
 
+ALLOWED_SERIAL_VERBS = frozenset({
+    "QR", "WAIT", "PASS", "FAIL", "INFO", "TEXT", "WARN",
+    "IDLE", "IDLE_SINGLE", "IDLE_CYCLE", "IDLE_SLEEP", "IDLE_SLEEP_WAKE",
+    "WAKE", "RESET", "FORMAT",
+    "VOLUME", "BRIGHTNESS", "SCREENTIME", "TIMEOUT",
+    "ACTIVATE_BUZZER", "DO_BLE_MODE_ENABLE", "BLE_OFF",
+    "GET_VOLUME", "GET_BRIGHTNESS", "GET_IDLE",
+    "IS_BLE_ON", "IS_BLE_PIN_CHANGED", "BLE_CHG_PIN", "BLE_RESET_PIN",
+    "DEVICE_ID", "FIRMWARE_ID",
+    "START_RTIMAGE", "IMAGE_UPLOAD", "IMAGE_UPLOAD_2",
+})
+
+_CONTROL_CHARS = re.compile(r"[\r\n\x00-\x1f\x7f]")
+
+
+def validate_serial_frame(command: str) -> str:
+    """
+    Validate command frame before sending over UART.
+    Enforces protocol syntax, rejects control characters and unapproved verbs,
+    and guards against delimiter injection breakouts.
+    """
+    if not isinstance(command, str) or not command.strip():
+        raise ValueError("Command cannot be empty")
+
+    clean_cmd = command.strip()
+
+    # Reject newlines, CR, NUL, and other control characters that break UART framing
+    if _CONTROL_CHARS.search(clean_cmd):
+        raise ValueError("Command contains illegal control characters")
+
+    # Command protocol format: VERB**param1**param2... or VERB:key=val
+    parts = clean_cmd.split("**")
+    verb = parts[0].split(":")[0].strip()
+    if verb not in ALLOWED_SERIAL_VERBS:
+        raise ValueError(f"Verb '{verb}' is not permitted")
+
+    # Enforce field length boundaries
+    for idx, field in enumerate(parts[1:], start=1):
+        if len(field) > 1024:
+            raise ValueError(f"Field {idx} exceeds maximum allowed length (1024)")
+
+    return clean_cmd
+
 
 class DeviceManager:
     """Thread-safe UART communication with the connected display."""
@@ -402,14 +445,20 @@ class DeviceManager:
         Send a text command to the device (newline-terminated) and wait for the expected ACK/response.
         Returns {"success": bool, "response": str | None, "error": str | None}.
         """
+        try:
+            valid_cmd = validate_serial_frame(command)
+        except ValueError as err:
+            logger.warning("Rejected invalid serial frame: %s", err)
+            return {"success": False, "response": None, "error": str(err)}
+
         with self._lock:
             if not self._connected or not self._serial or not self._serial.is_open:
                 return {"success": False, "response": None, "error": "Device not connected."}
             try:
                 self._serial.reset_input_buffer()
-                self._serial.write((command + "\n").encode("utf-8"))
+                self._serial.write((valid_cmd + "\n").encode("utf-8"))
                 self._serial.flush()
-                logger.info(f"Sent: {command}")
+                logger.info(f"Sent: {valid_cmd}")
                 
                 # Read response line
                 response = self._serial.readline().decode("utf-8", errors="ignore").strip()

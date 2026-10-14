@@ -189,5 +189,44 @@ class TestDeviceManagerBlePinCommands(unittest.TestCase):
         self.device.send_command.assert_called_with("BLE_RESET_PIN")
 
 
+class TestSerialFrameValidation(unittest.TestCase):
+
+    def test_valid_commands(self):
+        from device_manager import validate_serial_frame
+        self.assertEqual(validate_serial_frame("QR**100**scan**payload"), "QR**100**scan**payload")
+        self.assertEqual(validate_serial_frame("IDLE"), "IDLE")
+        self.assertEqual(validate_serial_frame("PASS**Success**Done"), "PASS**Success**Done")
+        self.assertEqual(validate_serial_frame("VOLUME**50"), "VOLUME**50")
+
+    def test_control_character_injection_rejected(self):
+        from device_manager import validate_serial_frame
+        with self.assertRaises(ValueError):
+            validate_serial_frame("QR**100\nFORMAT**payload")
+        with self.assertRaises(ValueError):
+            validate_serial_frame("QR**100\rRESET**payload")
+        with self.assertRaises(ValueError):
+            validate_serial_frame("QR**100\x00malicious")
+
+    def test_unpermitted_verb_rejected(self):
+        from device_manager import validate_serial_frame
+        with self.assertRaises(ValueError):
+            validate_serial_frame("UNAPPROVED_VERB**arg1")
+        with self.assertRaises(ValueError):
+            validate_serial_frame("DROP_DATABASE")
+
+    def test_oversized_field_rejected(self):
+        from device_manager import validate_serial_frame
+        huge_field = "A" * 1025
+        with self.assertRaises(ValueError):
+            validate_serial_frame(f"QR**100**{huge_field}")
+
+    def test_send_command_returns_error_on_invalid_frame(self):
+        dev = DeviceManager()
+        res = dev.send_command("EVIL_VERB**inject\nFORMAT")
+        self.assertFalse(res["success"])
+        self.assertIn("error", res)
+        self.assertIsNotNone(res["error"])
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -312,14 +312,20 @@ class TrayFlyout(QWidget):
         root.addStretch()
         
         footer_layout = QHBoxLayout()
-        
+
+        self.btn_settings = QPushButton("⚙  Settings")
+        self.btn_settings.setObjectName("ghostBtn")
+        self.btn_settings.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_settings.clicked.connect(self._open_settings)
+        footer_layout.addWidget(self.btn_settings)
+
         footer_layout.addStretch()
-        
+
         self.btn_quit = QPushButton("Quit")
         self.btn_quit.setObjectName("ghostBtn")
         self.btn_quit.clicked.connect(self._quit_app)
         footer_layout.addWidget(self.btn_quit)
-        
+
         root.addLayout(footer_layout)
 
         # Prevent buttons and radio buttons from holding persistent focus or dotted outlines
@@ -1610,6 +1616,11 @@ class TrayFlyout(QWidget):
         self.hide()
         if self.on_quit_callback:
             self.on_quit_callback()
+
+    def _open_settings(self):
+        from ui_components import SettingsDialog
+        dlg = SettingsDialog(self)
+        dlg.exec()
 
     def _open_log_file(self):
         from config import config

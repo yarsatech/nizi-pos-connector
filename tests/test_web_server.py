@@ -11,13 +11,14 @@ from unittest.mock import patch, MagicMock
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from web_server import app, device
-from config import config
+from config import config, Config
 
 
 class TestWebServerRoutes(unittest.TestCase):
 
     def setUp(self):
         app.config["TESTING"] = True
+        config.set_cors_settings("allowlist", ["https://nagarik.gibl.com.np"])
         # Use config's api key for authentication headers
         self.api_key = config.api_key
         self.headers = {"X-API-Key": self.api_key}
@@ -155,6 +156,87 @@ class TestWebServerRoutes(unittest.TestCase):
         self.assertTrue(data["success"])
         self.assertEqual(data["suspended_for"], 180)
         mock_device.suspend_auto_connect.assert_called_with(180)
+
+    def test_client_config_auth_required(self):
+        # Unauthenticated request to /client-config should fail with 401
+        res = self.client.get("/client-config")
+        self.assertEqual(res.status_code, 401)
+
+        # Authenticated request succeeds and returns cors info
+        res = self.client.get("/client-config", headers=self.headers)
+        self.assertEqual(res.status_code, 200)
+        data = json.loads(res.data)
+        self.assertIn("cors_allowed_origins", data)
+        self.assertIn("cors_mode", data)
+
+    def test_cors_allowlist_enforcement(self):
+        # Disallowed origin receives 403
+        bad_headers = dict(self.headers)
+        bad_headers["Origin"] = "https://malicious-website.com"
+        res = self.client.get("/api/status", headers=bad_headers)
+        self.assertEqual(res.status_code, 403)
+
+        # Preflight OPTIONS from disallowed origin returns 403
+        res = self.client.options("/api/status", headers={"Origin": "https://malicious-website.com"})
+        self.assertEqual(res.status_code, 403)
+
+        # Allowed origin receives 200 and Access-Control-Allow-Origin header
+        good_origin = "https://nagarik.gibl.com.np"
+        good_headers = dict(self.headers)
+        good_headers["Origin"] = good_origin
+        res = self.client.get("/api/status", headers=good_headers)
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.headers.get("Access-Control-Allow-Origin"), good_origin)
+        self.assertIsNone(res.headers.get("Access-Control-Allow-Credentials"))
+
+        # Allowed origin with trailing slash should also be permitted
+        slash_headers = dict(self.headers)
+        slash_headers["Origin"] = "https://nagarik.gibl.com.np/"
+        res = self.client.get("/api/status", headers=slash_headers)
+        self.assertEqual(res.status_code, 200)
+
+        # Browser extension origins should always be permitted (authenticated via API key)
+        ext_headers = dict(self.headers)
+        ext_headers["Origin"] = "chrome-extension://bbdeicbggjgcjehkpndmdfbepgebeeli"
+        res = self.client.get("/api/status", headers=ext_headers)
+        self.assertEqual(res.status_code, 200)
+
+    def test_cors_allow_all_mode(self):
+        with patch.object(Config, "cors_mode", new_callable=lambda: "allow_all"):
+            any_origin = "https://custom-merchant-erp.org"
+            headers = dict(self.headers)
+            headers["Origin"] = any_origin
+            res = self.client.get("/api/status", headers=headers)
+            self.assertEqual(res.status_code, 200)
+            self.assertEqual(res.headers.get("Access-Control-Allow-Origin"), any_origin)
+
+    @patch("web_server.device")
+    def test_api_command_sanitization(self, mock_device):
+        mock_device.send_command.return_value = {"success": True, "response": "OK", "error": None}
+
+        # Valid command succeeds
+        res = self.client.post(
+            "/api/command",
+            json={"command": "TEXT**Hello**World**Test"},
+            headers=self.headers,
+        )
+        self.assertEqual(res.status_code, 200)
+
+        # Command with newline injection fails with 400
+        res = self.client.post(
+            "/api/command",
+            json={"command": "QR**10.00\nFORMAT**payload"},
+            headers=self.headers,
+        )
+        self.assertEqual(res.status_code, 400)
+
+        # Command with unapproved verb fails with 400
+        res = self.client.post(
+            "/api/command",
+            json={"command": "DROP_DATABASE**payload"},
+            headers=self.headers,
+        )
+        self.assertEqual(res.status_code, 400)
 
 
 if __name__ == "__main__":

@@ -71,6 +71,42 @@ class TestConfig(unittest.TestCase):
                 # When passing .app directly
                 self.assertEqual(Path(_resolve_main_exe_path(str(mac_dir / "NiziPOSConnector.app"))), mac_exe)
 
+    def test_api_key_persistence_and_encryption(self):
+        import tempfile
+        from security import constant_time_compare
+        with tempfile.TemporaryDirectory() as td:
+            with patch("config.user_config_dir", return_value=td):
+                cfg = Config()
+                key1 = cfg.api_key
+                self.assertIsNotNone(key1)
+                self.assertTrue(len(key1) >= 40)
+
+                # Reset cache and reload from disk
+                cfg2 = Config()
+                key2 = cfg2.api_key
+                self.assertEqual(key1, key2)
+                self.assertTrue(constant_time_compare(key1, key2))
+                self.assertFalse(constant_time_compare(key1, "invalid_key"))
+
+    def test_cors_configuration(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as td:
+            with patch("config.user_config_dir", return_value=td):
+                cfg = Config()
+                # Test default template origins
+                self.assertEqual(cfg.cors_mode, "allowlist")
+                self.assertIn("https://nagarik.gibl.com.np", cfg.cors_allowed_origins)
+
+                # Update CORS mode and origins
+                cfg.set_cors_settings("allow_all", ["https://custom-pos.com/"])
+                self.assertEqual(cfg.cors_mode, "allow_all")
+                self.assertEqual(cfg.cors_allowed_origins, ["https://custom-pos.com"])
+
+                # Verify persistence in config.json
+                cfg_reloaded = Config()
+                self.assertEqual(cfg_reloaded.cors_mode, "allow_all")
+                self.assertEqual(cfg_reloaded.cors_allowed_origins, ["https://custom-pos.com"])
+
 
 if __name__ == "__main__":
     unittest.main()

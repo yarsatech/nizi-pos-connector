@@ -12,5 +12,15 @@
 	"ota_http_user_agent": "nizi-pos-connector-ota",
 	"ota_temp_dir_name": "nizi-pos-connector-ota-temp",
 	"ota_staging_dir_prefix": "nizi-pos-connector-ota-staging",
-	"install_backup_dir_prefix": "nizi-pos-connector-ota-backup"
+	"install_backup_dir_prefix": "nizi-pos-connector-ota-backup",
+	"cors_mode": "allowlist",
+	"cors_allowed_origins": [
+		"https://globalime.innovationnxt.com",
+		"https://nagarik.gibl.com.np",
+		"https://fonebiz.fonepay.com",
+		"https://business.nepalpay.com.np",
+		"https://sutra.fcgo.gov.np",
+		"https://sutrarajaswa.fcgo.gov.np",
+		"https://revenue.fcgo.gov.np"
+	]
 }

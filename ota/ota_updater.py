@@ -229,6 +229,12 @@ def main():
 
         logger.info(f"Extracting update zip: {update_zip}")
         with zipfile.ZipFile(update_zip, "r") as zf:
+            # Prevent Zip Slip directory traversal (NIZI-006)
+            extract_root_abs = os.path.abspath(extract_root)
+            for member in zf.infolist():
+                member_target = os.path.abspath(os.path.join(extract_root, member.filename))
+                if not member_target.startswith(extract_root_abs + os.sep) and member_target != extract_root_abs:
+                    raise RuntimeError(f"Zip slip security violation: {member.filename} resolves outside destination")
             zf.extractall(extract_root)
 
         app_root = _find_app_root(extract_root)

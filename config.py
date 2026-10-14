@@ -35,6 +35,8 @@ _DIST_DEFAULTS: dict = {
     "ota_temp_dir_name": "nizi_pos_connector_ota",
     "ota_staging_dir_prefix": "nizi_pos_connector_ota_staging_",
     "install_backup_dir_prefix": "NiziPOSConnector_backup_",
+    "cors_mode": "allowlist",
+    "cors_allowed_origins": [],
 }
 
 
@@ -137,8 +139,47 @@ class Config:
             logger.error(f"Failed to save config: {e}")
 
     @property
-    def api_key(self) -> str:
-        return "Z8uVovI2eftp65dO9JoxEstKcWggSlTAza4erAQhELmSC761rVtp5IIzaXOxWNw0ycPCICYCnJBCVPCzvdT8fbJvWIWm69fhHveZesIiDEIeI0BkdSspMPimWYNWs25D"
+    def api_key(self) -> str | None:
+        """
+        Dynamically loaded, installation-unique credential protected by DPAPI/POSIX.
+        Cached in-memory per process lifecycle; never hardcoded in source.
+        """
+        if not hasattr(self, "_api_key_cache") or not self._api_key_cache:
+            try:
+                from security import get_or_create_api_key
+                self._api_key_cache = get_or_create_api_key(self.config_dir)
+            except Exception as exc:
+                logger.error("Failed to load or decrypt installation API key: %s", exc)
+                self._api_key_cache = None
+        return self._api_key_cache
+
+    def regenerate_api_key(self) -> str:
+        """Regenerate and persist a new installation API key."""
+        from security import regenerate_api_key
+        self._api_key_cache = regenerate_api_key(self.config_dir)
+        return self._api_key_cache
+
+    @property
+    def cors_mode(self) -> str:
+        """Operating CORS mode: 'allowlist' (default/restricted) or 'allow_all' (general)."""
+        return str(self._config.get("cors_mode") or _DIST.get("cors_mode") or "allowlist").strip().lower()
+
+    @property
+    def cors_allowed_origins(self) -> list[str]:
+        """List of permitted browser Origins when in 'allowlist' mode."""
+        if "cors_allowed_origins" in self._config:
+            origins = self._config["cors_allowed_origins"]
+        else:
+            origins = _DIST.get("cors_allowed_origins", [])
+        return [str(o).strip().rstrip("/") for o in origins if str(o).strip()]
+
+    def set_cors_settings(self, mode: str, origins: list[str]) -> None:
+        """Update and persist CORS configuration to user config.json."""
+        self._config["cors_mode"] = mode.strip().lower()
+        self._config["cors_allowed_origins"] = [
+            str(o).strip().rstrip("/") for o in origins if str(o).strip()
+        ]
+        self.save()
 
     @property
     def is_windows(self) -> bool:

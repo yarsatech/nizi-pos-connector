@@ -36,6 +36,18 @@ def _macos_prefers_dark_theme() -> bool:
 
 
 def _linux_prefers_dark_theme() -> bool:
+    try:
+        res = subprocess.run(
+            ["gsettings", "get", "org.gnome.desktop.interface", "color-scheme"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if res.returncode == 0 and "dark" in (res.stdout or "").lower():
+            return True
+    except Exception:
+        pass
+
     for key in ("GTK_THEME", "QT_STYLE_OVERRIDE", "COLORFGBG"):
         val = (os.environ.get(key) or "").lower()
         if "dark" in val:
@@ -257,11 +269,11 @@ QPushButton#warningBtn:hover {{ background-color: {c['warning_hover_bg'] if 'war
 QPushButton#ghostBtn {{ font-size: {c['font_size_sm']}; padding: {c['dropdown_item_padding']}; background: transparent; color: {c['ghost_text']}; border: none; }}
 QPushButton#ghostBtn:hover {{ color: {c['ghost_hover_text']}; }}
 QRadioButton {{ font-size: {c['font_size_base']}; color: {c['text_primary']}; spacing: 8px; padding: 4px; }}
-QRadioButton::indicator {{ width: 18px; height: 18px; border: 2px solid {c['radio_border']}; border-radius: 9px; background: {c['input_bg']}; }}
+QRadioButton::indicator {{ width: 14px; height: 14px; border: 2px solid {c['radio_border']}; border-radius: 9px; background: transparent; }}
 QRadioButton::indicator:hover {{ border-color: {c['radio_hover_border']}; }}
 QRadioButton::indicator:checked {{
-    border-color: {c['accent']}; background-color: {c['accent']};
-    image: url(data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0id2hpdGUiPjxjaXJjbGUgY3g9IjEyIiBjeT0iMTIiIHI9IjUiLz48L3N2Zz4=);
+    border: 2px solid {c['accent']};
+    background: qradialgradient(cx:0.5, cy:0.5, radius:0.45, fx:0.5, fy:0.5, stop:0 {c['accent']}, stop:0.55 {c['accent']}, stop:0.6 transparent, stop:1 transparent);
 }}
 QRadioButton:disabled {{ color: {c['text_muted']}; }}
 QRadioButton::indicator:disabled {{ border-color: {c['border']}; background-color: {c['card_bg']}; }}

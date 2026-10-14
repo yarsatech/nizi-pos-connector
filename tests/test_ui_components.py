@@ -1,7 +1,8 @@
 import unittest
-from PyQt6.QtWidgets import QApplication
+from unittest.mock import patch, MagicMock
+from PyQt6.QtWidgets import QApplication, QLineEdit
 from PyQt6.QtCore import Qt, QPoint, QEvent
-from PyQt6.QtGui import QWheelEvent
+from PyQt6.QtGui import QWheelEvent, QGuiApplication
 
 from ui_components import ModernPromptDialog, BleChangePinDialog
 from ui_app import SafeComboBox
@@ -134,6 +135,63 @@ class TestThemeStylesheetValidity(unittest.TestCase):
         self.assertNotIn("filter:", tokens_light)
         self.assertNotIn("transform:", tokens_dark)
         self.assertNotIn("transform:", tokens_light)
+
+
+class TestSettingsDialog(unittest.TestCase):
+
+    def test_settings_dialog_components_and_operations(self):
+        from ui_components import SettingsDialog
+        from config import config
+
+        dlg = SettingsDialog()
+
+        # Test adding origin
+        initial_count = dlg.origins_list.count()
+        dlg.new_origin_input.setText("https://test-portal.example.com")
+        dlg._add_origin()
+        self.assertEqual(dlg.origins_list.count(), initial_count + 1)
+        self.assertEqual(dlg.new_origin_input.text(), "")
+
+        # Test removing selected origin
+        dlg.origins_list.setCurrentRow(dlg.origins_list.count() - 1)
+        dlg._remove_origin()
+        self.assertEqual(dlg.origins_list.count(), initial_count)
+
+        # Test copy key
+        dlg._copy_key()
+        clipboard = QGuiApplication.clipboard()
+        if clipboard:
+            self.assertEqual(clipboard.text(), config.api_key)
+
+        # Test regenerate key rejected (no key changed)
+        with patch("ui_components.ModernPromptDialog.exec"), \
+             patch("ui_components.ModernPromptDialog.is_accepted", new_callable=lambda: False), \
+             patch.object(dlg.config, "regenerate_api_key") as mock_regen:
+            dlg._regenerate_key()
+            mock_regen.assert_not_called()
+
+        # Test regenerate key accepted (key updated)
+        with patch("ui_components.ModernPromptDialog.exec"), \
+             patch("ui_components.ModernPromptDialog.is_accepted", new_callable=lambda: True), \
+             patch.object(dlg.config, "regenerate_api_key", return_value="NEW_GENERATED_KEY_123") as mock_regen:
+            dlg._regenerate_key()
+            mock_regen.assert_called_once()
+            self.assertEqual(dlg.btn_regenerate_key.text(), "Key Regenerated!")
+
+        # Test save prompt rejected (no changes committed)
+        with patch("ui_components.ModernPromptDialog.exec"), \
+             patch.object(dlg.config, "set_cors_settings") as mock_set:
+            with patch("ui_components.ModernPromptDialog.is_accepted", new_callable=lambda: False):
+                dlg._save_and_close()
+                mock_set.assert_not_called()
+
+        # Test save prompt accepted (changes committed)
+        with patch("ui_components.ModernPromptDialog.exec"), \
+             patch.object(dlg, "accept"), \
+             patch.object(dlg.config, "set_cors_settings") as mock_set:
+            with patch("ui_components.ModernPromptDialog.is_accepted", new_callable=lambda: True):
+                dlg._save_and_close()
+                mock_set.assert_called_once()
 
 
 if __name__ == "__main__":

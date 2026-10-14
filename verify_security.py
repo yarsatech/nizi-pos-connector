@@ -18,11 +18,13 @@ import io
 
 BASE_URL = "http://127.0.0.1:9121"
 
+from config import config
+
 class TestHardening(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        # The API key is now hardcoded in the app.
-        cls.api_key = "Z8uVovI2eftp65dO9JoxEstKcWggSlTAza4erAQhELmSC761rVtp5IIzaXOxWNw0ycPCICYCnJBCVPCzvdT8fbJvWIWm69fhHveZesIiDEIeI0BkdSspMPimWYNWs25D"
+        # Dynamically load API key from configuration
+        cls.api_key = config.api_key
 
     def test_unauthorized_access(self):
         """API should return 401 without key."""

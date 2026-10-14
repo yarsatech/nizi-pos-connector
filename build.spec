@@ -67,6 +67,7 @@ a_main = Analysis(
         'ota.update_manager',
         'ota.github',
         'ota.firmware_api',
+        'waitress',
     ],
     hookspath=[],
     hooksconfig={},

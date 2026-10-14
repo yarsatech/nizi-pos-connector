@@ -7,3 +7,4 @@ pyinstaller
 pyqt6
 platformdirs
 requests
+waitress

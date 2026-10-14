@@ -19,16 +19,19 @@ AppMutex=NiziPOSConnectorMutex
 AppVersion={#AppVer}
 AppPublisher=Yarsa Tech
 AppPublisherURL=https://yarsa.tech/
-DefaultDirName={localappdata}\NiziPOSConnector
+DefaultDirName={autopf}\NiziPOSConnector
 DefaultGroupName=Nizi POS Connector
 OutputDir=dist
 OutputBaseFilename=NiziPOSConnector-Installer-{#AppVer}-{#AppArch}
-SetupIconFile=assets\\setup-icon.ico
+SetupIconFile=assets\setup-icon.ico
 UninstallDisplayIcon={app}\NiziPOSConnector.exe
 DisableProgramGroupPage=yes
 Compression=lzma
 SolidCompression=yes
-PrivilegesRequired=lowest
+PrivilegesRequired=admin
+PrivilegesRequiredOverridesAllowed=dialog
+CloseApplications=yes
+
 
 [InstallDelete]
 Type: filesandordirs; Name: "{app}\*"
@@ -54,3 +57,5 @@ ValueType: string; ValueName: "NiziPOSConnector"; ValueData: "{app}\NiziPOSConne
 
 [UninstallDelete]
 Type: filesandordirs; Name: "{app}"
+Type: filesandordirs; Name: "{localappdata}\Yarsa Tech\Nizi POS Connector"
+Type: filesandordirs; Name: "{userappdata}\Yarsa Tech\Nizi POS Connector"

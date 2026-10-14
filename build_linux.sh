@@ -148,6 +148,14 @@ EOF
 set -e
 if [ "\$1" = "purge" ]; then
   rm -rf "${INSTALL_PREFIX}"
+  for user_home in /home/*; do
+    if [ -d "\$user_home/.config/Nizi POS Connector" ]; then
+      rm -rf "\$user_home/.config/Nizi POS Connector"
+    fi
+  done
+  if [ -d "/root/.config/Nizi POS Connector" ]; then
+    rm -rf "/root/.config/Nizi POS Connector"
+  fi
 fi
 if command -v update-desktop-database &>/dev/null; then
   update-desktop-database /usr/share/applications
@@ -258,6 +266,14 @@ if command -v update-desktop-database &>/dev/null; then
 fi
 if [ "\$1" = "0" ]; then
     rm -rf "${INSTALL_PREFIX}"
+    for user_home in /home/*; do
+        if [ -d "\$user_home/.config/Nizi POS Connector" ]; then
+            rm -rf "\$user_home/.config/Nizi POS Connector"
+        fi
+    done
+    if [ -d "/root/.config/Nizi POS Connector" ]; then
+        rm -rf "/root/.config/Nizi POS Connector"
+    fi
 fi
 
 %files
@@ -369,6 +385,14 @@ post_install() {
 post_upgrade() { post_install; }
 post_remove() {
   rm -rf "${INSTALL_PREFIX}"
+  for user_home in /home/*; do
+    if [ -d "\$user_home/.config/Nizi POS Connector" ]; then
+      rm -rf "\$user_home/.config/Nizi POS Connector"
+    fi
+  done
+  if [ -d "/root/.config/Nizi POS Connector" ]; then
+    rm -rf "/root/.config/Nizi POS Connector"
+  fi
   if command -v update-desktop-database &>/dev/null; then
     update-desktop-database /usr/share/applications
   fi
