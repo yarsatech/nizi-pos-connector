@@ -256,19 +256,19 @@ QTextEdit:hover {{ border-color: {c['border_hover']}; }}
 QTextEdit:focus {{ border-color: {c['accent']}; }}
 QPushButton#primaryBtn, QPushButton#connectBtn {{
     font-size: {c['font_size_base']}; padding: {c['button_padding']}; background-color: {c['accent']}; color: #ffffff;
-    border: none; border-radius: {c['border_radius_md']}; font-weight: 600;
+    border: none; border-radius: {c['border_radius_md']}; font-weight: 600; min-height: 20px;
 }}
 QPushButton#primaryBtn:hover, QPushButton#connectBtn:hover {{ background-color: {c['accent_bright']}; }}
 QPushButton#primaryBtn:pressed, QPushButton#connectBtn:pressed {{ background-color: {c['accent_pressed']}; }}
 QPushButton#primaryBtn:disabled, QPushButton#connectBtn:disabled {{ background-color: {c['accent_disabled']}; color: #fee2e2; }}
 QPushButton#secondaryBtn, QPushButton#disconnectBtn {{
     font-size: {c['font_size_base']}; padding: {c['button_padding']}; background-color: {c['window_bg']}; color: {c['text_primary']};
-    border: 1px solid {c['border']}; border-radius: {c['border_radius_md']}; font-weight: 500;
+    border: 1px solid {c['border']}; border-radius: {c['border_radius_md']}; font-weight: 500; min-height: 20px;
 }}
 QPushButton#secondaryBtn:hover, QPushButton#disconnectBtn:hover {{ background-color: {c['secondary_hover_bg']}; border-color: {c['secondary_hover_border']}; }}
-QPushButton#dangerBtn {{ font-size: {c['font_size_base']}; padding: {c['button_padding']}; background-color: {c['danger_bg']}; color: {c['danger_text']}; border: 1px solid {c['danger_border']}; border-radius: {c['border_radius_md']}; font-weight: 500; }}
+QPushButton#dangerBtn {{ font-size: {c['font_size_base']}; padding: {c['button_padding']}; background-color: {c['danger_bg']}; color: {c['danger_text']}; border: 1px solid {c['danger_border']}; border-radius: {c['border_radius_md']}; font-weight: 500; min-height: 20px; }}
 QPushButton#dangerBtn:hover {{ background-color: {c['danger_hover_bg'] if 'danger_hover_bg' in c else c['danger_bg']}; }}
-QPushButton#warningBtn {{ font-size: {c['font_size_base']}; padding: {c['button_padding']}; background-color: {c['warning_bg']}; color: {c['warning_text']}; border: 1px solid {c['warning_border']}; border-radius: {c['border_radius_md']}; font-weight: 500; }}
+QPushButton#warningBtn {{ font-size: {c['font_size_base']}; padding: {c['button_padding']}; background-color: {c['warning_bg']}; color: {c['warning_text']}; border: 1px solid {c['warning_border']}; border-radius: {c['border_radius_md']}; font-weight: 500; min-height: 20px; }}
 QPushButton#warningBtn:hover {{ background-color: {c['warning_hover_bg'] if 'warning_hover_bg' in c else c['warning_bg']}; }}
 QPushButton#ghostBtn {{ font-size: {c['font_size_sm']}; padding: {c['dropdown_item_padding']}; background: transparent; color: {c['ghost_text']}; border: none; }}
 QPushButton#ghostBtn:hover {{ color: {c['ghost_hover_text']}; }}

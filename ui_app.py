@@ -293,7 +293,7 @@ class TrayFlyout(QWidget):
 
         # Section title + dropdown row
         section_row = QHBoxLayout()
-        section_lbl = QLabel("Send Command")
+        section_lbl = QLabel("Control Panel")
         section_lbl.setObjectName("sectionTitle")
         section_row.addWidget(section_lbl)
         section_row.addStretch()
@@ -356,8 +356,10 @@ class TrayFlyout(QWidget):
         # Prevent buttons and radio buttons from holding persistent focus or dotted outlines
         for btn in self.findChildren(QPushButton):
             btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+            btn.setCursor(Qt.CursorShape.PointingHandCursor)
         for radio in self.findChildren(QRadioButton):
             radio.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+            radio.setCursor(Qt.CursorShape.PointingHandCursor)
 
         # Clear focus when clicking on background/cards
         scroll_content.installEventFilter(self)
@@ -891,8 +893,9 @@ class TrayFlyout(QWidget):
         page = QWidget()
         layout = QVBoxLayout(page)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(12)
+        layout.setSpacing(8)
 
+        # Row 1: Display State
         row1 = QHBoxLayout()
         self.btn_idle = QPushButton("IDLE")
         self.btn_idle.setIcon(_get_icon("bedtime"))
@@ -907,37 +910,42 @@ class TrayFlyout(QWidget):
         row1.addWidget(self.btn_wake)
         layout.addLayout(row1)
 
+        # Row 2: Transaction Responses
         row2 = QHBoxLayout()
-        self.btn_restart = QPushButton("RESTART")
-        self.btn_restart.setIcon(_get_icon("restart_alt"))
-        self.btn_restart.setObjectName("warningBtn")
-        self.btn_restart.clicked.connect(self._quick_send_restart)
-        row2.addWidget(self.btn_restart)
+        self.btn_quick_wait = QPushButton("WAIT")
+        self.btn_quick_wait.setIcon(_get_icon("hourglass_top"))
+        self.btn_quick_wait.setObjectName("secondaryBtn")
+        self.btn_quick_wait.clicked.connect(self._quick_send_wait)
+        row2.addWidget(self.btn_quick_wait)
 
-        self.btn_format = QPushButton("FORMAT")
-        self.btn_format.setIcon(_get_icon("delete_forever"))
-        self.btn_format.setObjectName("dangerBtn")
-        self.btn_format.clicked.connect(self._quick_send_format)
-        row2.addWidget(self.btn_format)
+        self.btn_quick_pass = QPushButton("PASS")
+        self.btn_quick_pass.setIcon(_get_icon("check_circle"))
+        self.btn_quick_pass.setObjectName("secondaryBtn")
+        self.btn_quick_pass.clicked.connect(self._quick_send_pass)
+        row2.addWidget(self.btn_quick_pass)
         layout.addLayout(row2)
 
+        # Payment Action
         self.btn_quick_qr = QPushButton("Send QR")
         self.btn_quick_qr.setIcon(_get_icon("qr_code_2"))
         self.btn_quick_qr.setObjectName("secondaryBtn")
         self.btn_quick_qr.clicked.connect(self._send_qr)
         layout.addWidget(self.btn_quick_qr)
 
-        self.btn_quick_wait = QPushButton("WAIT")
-        self.btn_quick_wait.setIcon(_get_icon("hourglass_top"))
-        self.btn_quick_wait.setObjectName("secondaryBtn")
-        self.btn_quick_wait.clicked.connect(self._quick_send_wait)
-        layout.addWidget(self.btn_quick_wait)
+        # Row 3: Maintenance / Hardware Controls
+        row3 = QHBoxLayout()
+        self.btn_restart = QPushButton("RESTART")
+        self.btn_restart.setIcon(_get_icon("restart_alt"))
+        self.btn_restart.setObjectName("warningBtn")
+        self.btn_restart.clicked.connect(self._quick_send_restart)
+        row3.addWidget(self.btn_restart)
 
-        self.btn_quick_pass = QPushButton("PASS")
-        self.btn_quick_pass.setIcon(_get_icon("check_circle"))
-        self.btn_quick_pass.setObjectName("secondaryBtn")
-        self.btn_quick_pass.clicked.connect(self._quick_send_pass)
-        layout.addWidget(self.btn_quick_pass)
+        self.btn_format = QPushButton("FORMAT")
+        self.btn_format.setIcon(_get_icon("delete_forever"))
+        self.btn_format.setObjectName("dangerBtn")
+        self.btn_format.clicked.connect(self._quick_send_format)
+        row3.addWidget(self.btn_format)
+        layout.addLayout(row3)
 
         self.quick_feedback = QLabel("")
         self.quick_feedback.setObjectName("instructionLabel")
