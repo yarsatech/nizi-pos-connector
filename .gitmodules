@@ -1,0 +1,3 @@
+[submodule "extension"]
+	path = extension
+	url = https://github.com/yarsatech/nizi-pos-connector-extension
