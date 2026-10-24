@@ -2,13 +2,35 @@
 
 The Nizi POS Connector background service exposes a REST API on `http://127.0.0.1:9121` for controlling the connected UART display device.
 
-## Authentication is handled via a fixed API key. This key is provided to authorized users via email and must be included in the `X-API-Key` header for all requests.
+## Authentication
 
-**Fixed API Token:** (Refer to your distribution email — documentation uses a placeholder name only, not the live secret.)
+Every REST and WebSocket request to `http://127.0.0.1:9121` requires authentication via the `X-API-Key` HTTP header.
 
 | Header | Description |
 | :--- | :--- |
-| `X-API-Key` | Your secure API token. |
+| `X-API-Key` | Your installation API token. |
+
+### API Key Options
+
+1. **Default Dynamic Key (Cryptographically Unique):**
+   - On initial launch, the Desktop Connector automatically generates a cryptographically random 256-bit key.
+   - The key is encrypted at rest using OS-level protection (Windows DPAPI / POSIX 0600).
+   - Can be copied directly from the Desktop App Settings by clicking **"Copy Key"**.
+
+2. **Standardized Merchant Integration Key (Multi-Terminal & Fleet Deployment):**
+   - In multi-lane retail setups (e.g. supermarkets, multi-counter restaurants, or multi-branch stores), generating and configuring a different random dynamic token *per device/workstation* creates severe operational maintenance overhead when integrating POS billing systems.
+   - Setting a verified custom key allows store administrators to configure a uniform, secure integration key across all checkout lanes and POS terminals without having to extract and manage distinct per-device tokens manually.
+   - In the Desktop App, open **Settings** and click **"Set Custom Key"**.
+   - **Key Validation Standards:** Must be between 16 and 32 characters and passes algorithmic mathematical validation:
+     - **Shannon Entropy Analysis:** Enforces minimum information density ($\ge 2.2$ bits/symbol and $\ge 20.0$ bits total entropy) to mathematically reject low-entropy inputs.
+     - **ASCII Delta Arithmetic:** Strict rejection of ascending/descending character runs (e.g. `1234`, `abcd`, `4321`) via first-order difference analysis ($\Delta_i \in \{+1, -1\}$).
+     - **Periodicity Decomposition:** Mathematically detects and rejects repeating cyclical chunks (e.g. `a1a1a1a1`, `term1term1`).
+     - **Character Diversity:** Enforces combined character classes (letters with numbers/symbols).
+   - Setting a custom key is gated behind a confirmation prompt to ensure awareness that existing clients must be updated.
+   - The connector encrypts and persists this key, immediately accepting it across all endpoints without requiring cloud dependencies.
+
+> [!NOTE]
+> For complete VAPT threat modeling, OWASP ASVS alignment, and ISO/IEC 27001 / ISO/IEC 25010 control mapping, refer to the [ISO Compliance & VAPT Security Guide](./ISO_COMPLIANCE_AND_VAPT.md).
 
 ---
 
@@ -410,4 +432,122 @@ Emitted after a command sent via `send_command` is processed.
 | `200` | OK. Operation completed or data returned. |
 | `400` | Bad Request. Missing parameters or invalid data. |
 | `401` | Unauthorized. Missing or invalid `X-API-Key`. |
-| `403` | Forbidden. Attempted access from non-localhost IP. |
+| `403` | Forbidden. Attempted access from non-localhost IP or disallowed origin. |
+| `429` | Too Many Requests. Throttled due to excessive failed auth attempts (max 10/min). `Retry-After: 60` enforced. |
+
+---
+
+## Integration Architecture & Multi-Terminal Setup
+
+Depending on your architecture, network topology, and website security requirements, choose the integration method that fits best:
+
+```
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│                                INTEGRATION OPTIONS                                     │
+├────────────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                        │
+│  [Method 1: Direct REST/WS with Custom Key]                                            │
+│  Billing Website (JS/Backend) ──── HTTP/WS (X-API-Key) ───► Desktop Connector (9121)   │
+│  * Merchant sets matching custom key in Desktop Settings via "Set Custom Key"          │
+│                                                                                        │
+│  [Method 3: Extension Provider Bridge (Zero-Key)]                                      │
+│  Billing Website ──── window.postMessage ───► Browser Extension ──── HTTP ───► Connector│
+│  * Zero keys hardcoded in website. Extension handles auth & localhost dispatch.        │
+│                                                                                        │
+└────────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Method 1: Direct Integration with Custom Key (Implemented)
+
+For setups where your billing website or backend makes direct HTTP/WebSocket requests to `http://127.0.0.1:9121`:
+
+1. **Merchant UI Setup:**
+   - Open Nizi POS Desktop App > **Settings**.
+   - Click **"Set Custom Key"**.
+   - Input your custom merchant token or legacy API key (e.g., `nizipos-fixed-secret-token` or your merchant account ID) and click **Save Key**.
+   - The key is securely encrypted at rest using OS-level protection (Windows DPAPI / POSIX permissions).
+2. **Billing Request:**
+   - Add the header `X-API-Key: <your-custom-key>` to your HTTP/WebSocket calls.
+   - Any client with this key can command the local POS display without code modifications on existing legacy billing systems.
+
+---
+
+### Method 3: Browser Extension Provider Bridge (Zero-Key Web Integration)
+
+> **Architectural Specification (Specification Only)**  
+> This method completely decouples web applications from local API keys and eliminates HTTPS-to-HTTP mixed content warnings in modern browsers.
+
+#### 1. How It Works
+Instead of having billing web apps store or hardcode API keys and make direct `fetch('http://127.0.0.1:9121/...')` calls, the **Nizi POS Browser Extension** acts as a client-side provider bridge:
+
+1. The billing webpage communicates with the extension via `window.postMessage` or the injected `window.niziPos` SDK object.
+2. The extension's background service holds the local API key securely in Chrome/Edge sync storage.
+3. The extension performs the localhost API requests and posts the result back to the page.
+
+#### 2. Web Application Integration Example
+
+Web developers do not include any secrets in their source code. Simply dispatch a DOM message or call the provider:
+
+```javascript
+// Example: Trigger dynamic payment QR code on customer display
+async function displayPaymentQR(amount, qrPayload) {
+  // Option A: Using window.postMessage bridge
+  window.postMessage({
+    target: "NIZI_POS_EXTENSION",
+    action: "SHOW_QR",
+    data: {
+      amount: amount,
+      qr_data: qrPayload,
+      note: "Invoice #1042"
+    }
+  }, "*");
+}
+
+// Listen for device responses / customer confirmation
+window.addEventListener("message", (event) => {
+  if (event.data?.source === "NIZI_POS_EXTENSION") {
+    const { action, status, payload } = event.data;
+    console.log(`[POS Event] Action: ${action}, Status: ${status}`, payload);
+    
+    if (status === "SUCCESS") {
+      console.log("QR successfully displayed on customer-facing terminal");
+    }
+  }
+});
+```
+
+#### 3. Standard Message Payload Schema
+
+**Request (Page to Extension):**
+```json
+{
+  "target": "NIZI_POS_EXTENSION",
+  "action": "SHOW_QR" | "PASS" | "FAIL" | "IDLE" | "STATUS",
+  "data": {
+    "amount": "450.00",
+    "qr_data": "000201010212...",
+    "note": "Payment Complete"
+  }
+}
+```
+
+**Response (Extension to Page):**
+```json
+{
+  "source": "NIZI_POS_EXTENSION",
+  "action": "SHOW_QR",
+  "status": "SUCCESS" | "ERROR",
+  "error": null,
+  "data": {
+    "device_connected": true,
+    "port": "COM3"
+  }
+}
+```
+
+#### 4. Key Benefits of Method 3
+- **Zero Secrets on the Web:** No API tokens exist in website JavaScript, GitHub repos, or browser network logs.
+- **Multi-Terminal Portability:** Central cloud billing software works identically on 100 different checkout counters; each cashier machine's browser extension communicates with its own local desktop connector automatically.
+- **No Mixed Content / CORS Restrictions:** Eliminates issues where secure HTTPS cloud POS platforms are blocked by browsers when calling insecure HTTP localhost (`http://127.0.0.1:9121`).
+- **Complete VAPT Compliance:** Eliminates NIZI-001 static token risks entirely.
+

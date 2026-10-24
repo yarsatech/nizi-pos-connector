@@ -10,7 +10,7 @@ from unittest.mock import patch, MagicMock
 # Add project root to sys.path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from web_server import app, device
+from web_server import app, device, reset_rate_limits
 from config import config, Config
 
 
@@ -18,6 +18,7 @@ class TestWebServerRoutes(unittest.TestCase):
 
     def setUp(self):
         app.config["TESTING"] = True
+        reset_rate_limits()
         config.set_cors_settings("allowlist", ["https://nagarik.gibl.com.np"])
         # Use config's api key for authentication headers
         self.api_key = config.api_key
@@ -237,6 +238,34 @@ class TestWebServerRoutes(unittest.TestCase):
             headers=self.headers,
         )
         self.assertEqual(res.status_code, 400)
+
+    def test_failed_auth_rate_limiting(self):
+        reset_rate_limits()
+
+        # 9 failed attempts return 401 Unauthorized
+        for i in range(9):
+            res = self.client.get("/api/status", headers={"X-API-Key": f"invalid_key_{i}"})
+            self.assertEqual(res.status_code, 401)
+
+        # 10th failed attempt triggers block threshold
+        res = self.client.get("/api/status", headers={"X-API-Key": "invalid_key_10"})
+        self.assertEqual(res.status_code, 401)
+
+        # 11th attempt is throttled and returns 429 Too Many Requests
+        res = self.client.get("/api/status", headers={"X-API-Key": "invalid_key_11"})
+        self.assertEqual(res.status_code, 429)
+        data = res.get_json()
+        self.assertEqual(data.get("error"), "Too Many Requests")
+        self.assertEqual(res.headers.get("Retry-After"), "60")
+
+        # Even with valid key, blocked client is throttled until window expires
+        res = self.client.get("/api/status", headers=self.headers)
+        self.assertEqual(res.status_code, 429)
+
+        # After reset, requests succeed normally
+        reset_rate_limits()
+        res = self.client.get("/api/status", headers=self.headers)
+        self.assertEqual(res.status_code, 200)
 
 
 if __name__ == "__main__":

@@ -24,8 +24,8 @@ from theme_support import (
 )
 
 class ModernPromptDialog(QDialog):
-    """A reusable, themed prompt dialog (Yes/No)."""
-    def __init__(self, parent=None, title="Prompt", headline_text="", info_text="", min_width=420, min_height=160):
+    """A reusable, themed prompt dialog (Confirm/Cancel)."""
+    def __init__(self, parent=None, title="Prompt", headline_text="", info_text="", yes_text="Yes", no_text="No", min_width=440, min_height=170):
         super().__init__(parent)
         self._accepted = False
         
@@ -42,19 +42,23 @@ class ModernPromptDialog(QDialog):
             | Qt.WindowType.MSWindowsFixedSizeDialogHint
         )
         self.setMinimumWidth(min_width)
-        self.setMinimumHeight(min_height)
 
         headline = QLabel(headline_text)
         headline.setStyleSheet(f"color:{colors['text_primary']}; font-size: 13.5pt; font-weight: 800;")
 
         info_lbl = QLabel(info_text)
         info_lbl.setWordWrap(True)
-        info_lbl.setStyleSheet(f"color:{colors['text_muted']}; font-size: 11pt; font-weight: 600;")
+        info_lbl.setStyleSheet(f"color:{colors['text_muted']}; font-size: 9.5pt; line-height: 1.4;")
 
-        yes_btn = QPushButton("Yes")
+        yes_btn = QPushButton(yes_text)
         yes_btn.setObjectName("yesBtn")
-        no_btn = QPushButton("No")
+        yes_btn.setFixedHeight(36)
+        yes_btn.setMinimumWidth(85)
+
+        no_btn = QPushButton(no_text)
         no_btn.setObjectName("noBtn")
+        no_btn.setFixedHeight(36)
+        no_btn.setMinimumWidth(80)
 
         def _accept():
             self._accepted = True
@@ -64,22 +68,17 @@ class ModernPromptDialog(QDialog):
         no_btn.clicked.connect(self.reject)
 
         btn_row = QHBoxLayout()
-        btn_row.setSpacing(colors['spacing_lg'])
+        btn_row.setSpacing(10)
         btn_row.addStretch(1)
-        btn_row.addWidget(yes_btn)
         btn_row.addWidget(no_btn)
-        btn_row.addStretch(1)
+        btn_row.addWidget(yes_btn)
 
         root = QVBoxLayout(self)
-        root.setContentsMargins(
-            colors['layout_margin_lg'],
-            colors['layout_margin_lg'],
-            colors['layout_margin_lg'],
-            colors['layout_margin_md']
-        )
-        root.setSpacing(colors['spacing_md'])
+        root.setContentsMargins(24, 22, 24, 24)
+        root.setSpacing(14)
         root.addWidget(headline)
         root.addWidget(info_lbl)
+        root.addSpacing(10)
         root.addLayout(btn_row)
 
         self.setStyleSheet(get_dialog_stylesheet(is_light))
@@ -186,24 +185,31 @@ class BleChangePinDialog(QDialog):
         headline = QLabel("Change BLE PIN")
         headline.setStyleSheet(f"color:{colors['text_primary']}; font-size: 13.5pt; font-weight: 800;")
 
-        info_lbl = QLabel("Enter your current PIN and the new PIN you'd like to set.")
+        info_lbl = QLabel("Enter the current PIN and the new 6-digit PIN.")
         info_lbl.setWordWrap(True)
-        info_lbl.setStyleSheet(f"color:{colors['text_muted']}; font-size: 11pt; font-weight: 600;")
+        info_lbl.setStyleSheet(f"color:{colors['text_muted']}; font-size: 9.5pt;")
 
         self.old_pin_input = QLineEdit()
         self.old_pin_input.setPlaceholderText("Current PIN")
         self.old_pin_input.setEchoMode(QLineEdit.EchoMode.Password)
+        self.old_pin_input.setFixedHeight(34)
         self.old_pin_toggle = setup_pin_visibility_toggle(self.old_pin_input)
 
         self.new_pin_input = QLineEdit()
         self.new_pin_input.setPlaceholderText("New PIN")
         self.new_pin_input.setEchoMode(QLineEdit.EchoMode.Password)
+        self.new_pin_input.setFixedHeight(34)
         self.new_pin_toggle = setup_pin_visibility_toggle(self.new_pin_input)
 
         change_btn = QPushButton("Change")
         change_btn.setObjectName("yesBtn")
+        change_btn.setFixedHeight(36)
+        change_btn.setMinimumWidth(85)
+
         cancel_btn = QPushButton("Cancel")
         cancel_btn.setObjectName("noBtn")
+        cancel_btn.setFixedHeight(36)
+        cancel_btn.setMinimumWidth(80)
 
         def _accept():
             old = self.old_pin_input.text().strip()
@@ -218,24 +224,19 @@ class BleChangePinDialog(QDialog):
         cancel_btn.clicked.connect(self.reject)
 
         btn_row = QHBoxLayout()
-        btn_row.setSpacing(colors['spacing_lg'])
+        btn_row.setSpacing(10)
         btn_row.addStretch(1)
-        btn_row.addWidget(change_btn)
         btn_row.addWidget(cancel_btn)
-        btn_row.addStretch(1)
+        btn_row.addWidget(change_btn)
 
         root = QVBoxLayout(self)
-        root.setContentsMargins(
-            colors['layout_margin_lg'],
-            colors['layout_margin_lg'],
-            colors['layout_margin_lg'],
-            colors['layout_margin_md']
-        )
-        root.setSpacing(colors['spacing_md'])
+        root.setContentsMargins(24, 22, 24, 24)
+        root.setSpacing(14)
         root.addWidget(headline)
         root.addWidget(info_lbl)
         root.addWidget(self.old_pin_input)
         root.addWidget(self.new_pin_input)
+        root.addSpacing(8)
         root.addLayout(btn_row)
 
         self.setStyleSheet(get_dialog_stylesheet(is_light))
@@ -264,162 +265,124 @@ class BleChangePinDialog(QDialog):
         return self._new_pin
 
 
-def _get_settings_dialog_stylesheet(is_light: bool) -> str:
-    """Complete, dedicated stylesheet for SettingsDialog ensuring perfect visual hierarchy and rendering."""
-    c = get_theme_tokens(is_light)
-    bg = "#ffffff" if is_light else "#0f172a"
-    card_bg = "#f8fafc" if is_light else "#111827"
-    input_bg = "#ffffff" if is_light else "#0b1220"
-    border = "#e2e8f0" if is_light else "#334155"
-    border_focus = "#ef4444"
-    text_pri = "#0f172a" if is_light else "#f1f5f9"
-    text_mut = "#64748b" if is_light else "#94a3b8"
-    item_hover_bg = "#f1f5f9" if is_light else "#1e293b"
-    item_hover_text = "#0f172a" if is_light else "#ffffff"
-    item_sel_bg = "#fef2f2" if is_light else "#1e293b"
-    item_sel_text = "#dc2626" if is_light else "#ffffff"
+class CustomApiKeyDialog(QDialog):
+    """Themed dialog for setting a user-defined custom API key."""
+    def __init__(self, parent=None, current_key: str = ""):
+        super().__init__(parent)
+        self._accepted = False
+        self._custom_key = ""
 
-    return f"""
-        QDialog {{
-            background-color: {bg};
-            color: {text_pri};
-            border: none;
-        }}
-        QLabel {{
-            background: transparent;
-        }}
-        QLineEdit {{
-            font-size: 10pt;
-            padding: 7px 11px;
-            border: 1px solid {border};
-            border-radius: 6px;
-            background-color: {input_bg};
-            color: {text_pri};
-        }}
-        QLineEdit:focus {{
-            border: 1px solid {border_focus};
-        }}
-        QLineEdit:disabled {{
-            background-color: {card_bg};
-            color: {text_mut};
-            border-color: {border};
-        }}
-        QListWidget {{
-            background-color: {input_bg};
-            border: 1px solid {border};
-            border-radius: 6px;
-            color: {text_pri};
-            font-size: 12px;
-            font-family: Consolas, 'Courier New', monospace;
-            padding: 4px;
-            outline: none;
-        }}
-        QListWidget:disabled {{
-            background-color: {card_bg};
-            color: {text_mut};
-            border-color: {border};
-        }}
-        QListWidget::item {{
-            padding: 6px 10px;
-            border-radius: 4px;
-            border: none;
-            outline: none;
-            color: {text_pri};
-        }}
-        QListWidget::item:hover {{
-            background-color: {item_hover_bg};
-            color: {item_hover_text};
-        }}
-        QListWidget::item:selected {{
-            background-color: {item_sel_bg};
-            color: {item_sel_text};
-            border-left: 3px solid #ef4444;
-            outline: none;
-        }}
-        QRadioButton {{
-            font-size: 13px;
-            font-weight: 500;
-            color: {text_pri};
-            spacing: 10px;
-            padding: 4px 0px;
-            outline: none;
-        }}
-        QRadioButton:hover {{
-            color: {text_pri};
-        }}
-        QRadioButton::indicator {{
-            width: 14px;
-            height: 14px;
-            border: 2px solid {border};
-            border-radius: 9px;
-            background-color: transparent;
-        }}
-        QRadioButton::indicator:hover {{
-            border-color: #94a3b8;
-        }}
-        QRadioButton::indicator:checked {{
-            border: 2px solid #ef4444;
-            background: qradialgradient(cx:0.5, cy:0.5, radius:0.45, fx:0.5, fy:0.5, stop:0 #ef4444, stop:0.55 #ef4444, stop:0.6 transparent, stop:1 transparent);
-        }}
-        QPushButton#actionBtn {{
-            background-color: {card_bg};
-            color: {text_pri};
-            border: 1px solid {border};
-            border-radius: 6px;
-            padding: 7px 14px;
-            font-size: 9.5pt;
-            font-weight: 600;
-            min-height: 16px;
-        }}
-        QPushButton#actionBtn:hover {{
-            background-color: {border};
-            color: {text_pri};
-        }}
-        QPushButton#actionBtn:pressed {{
-            background-color: {card_bg};
-        }}
-        QPushButton#actionBtn:disabled {{
-            background-color: {bg};
-            border-color: {border};
-            color: {text_mut};
-        }}
-        QPushButton#saveBtn {{
-            background-color: #ef4444;
-            color: #ffffff;
-            border: none;
-            border-radius: 7px;
-            padding: 8px 22px;
-            font-size: 10pt;
-            font-weight: 700;
-            min-width: 100px;
-        }}
-        QPushButton#saveBtn:hover {{
-            background-color: #dc2626;
-        }}
-        QPushButton#saveBtn:pressed {{
-            background-color: #b91c1c;
-        }}
-        QPushButton#cancelBtn {{
-            background-color: {card_bg};
-            color: {text_mut};
-            border: 1px solid {border};
-            border-radius: 7px;
-            padding: 8px 18px;
-            font-size: 10pt;
-            font-weight: 600;
-            min-width: 80px;
-        }}
-        QPushButton#cancelBtn:hover {{
-            background-color: {border};
-            color: {text_pri};
-        }}
-    """
+        is_light = prefers_light_theme()
+        colors = get_theme_tokens(is_light)
+
+        self.setWindowTitle("Custom API Key")
+        self.setWindowModality(Qt.WindowModality.WindowModal)
+        self.setWindowFlags(
+            Qt.WindowType.Dialog
+            | Qt.WindowType.WindowTitleHint
+            | Qt.WindowType.WindowCloseButtonHint
+            | Qt.WindowType.WindowSystemMenuHint
+            | Qt.WindowType.MSWindowsFixedSizeDialogHint
+        )
+        self.setMinimumWidth(500)
+
+        headline = QLabel("Custom API Key")
+        headline.setStyleSheet(f"color:{colors['text_primary']}; font-size: 13.5pt; font-weight: 800;")
+
+        info_lbl = QLabel(
+            "Configure a merchant-managed secret key for this connector terminal. "
+            "Must be 16–32 characters with verified entropy, avoiding repetitive or sequential character patterns."
+        )
+        info_lbl.setWordWrap(True)
+        info_lbl.setStyleSheet(f"color:{colors['text_muted']}; font-size: 9.5pt;")
+
+        self.key_input = QLineEdit()
+        self.key_input.setPlaceholderText("Enter custom key (16–32 characters)")
+        self.key_input.setMaxLength(32)
+        self.key_input.setFixedHeight(34)
+
+        self.error_lbl = QLabel("")
+        self.error_lbl.setStyleSheet("color: #ef4444; font-size: 9pt; font-weight: 600;")
+        self.error_lbl.setWordWrap(True)
+        self.error_lbl.hide()
+
+        save_btn = QPushButton("Save Key")
+        save_btn.setObjectName("saveBtn")
+        save_btn.setFixedHeight(36)
+        save_btn.setMinimumWidth(95)
+
+        cancel_btn = QPushButton("Cancel")
+        cancel_btn.setObjectName("cancelBtn")
+        cancel_btn.setFixedHeight(36)
+        cancel_btn.setMinimumWidth(80)
+
+        from security import validate_custom_api_key
+
+        def _on_save():
+            val = self.key_input.text().strip()
+            try:
+                validate_custom_api_key(val)
+            except ValueError as e:
+                self.error_lbl.setText(str(e))
+                self.error_lbl.show()
+                return
+            self._custom_key = val
+            self._accepted = True
+            self.accept()
+
+        save_btn.clicked.connect(_on_save)
+        cancel_btn.clicked.connect(self.reject)
+
+        btn_row = QHBoxLayout()
+        btn_row.setSpacing(10)
+        btn_row.addStretch(1)
+        btn_row.addWidget(cancel_btn)
+        btn_row.addWidget(save_btn)
+
+        root = QVBoxLayout(self)
+        root.setContentsMargins(24, 22, 24, 24)
+        root.setSpacing(14)
+        root.addWidget(headline)
+        root.addWidget(info_lbl)
+        root.addWidget(self.key_input)
+        root.addWidget(self.error_lbl)
+        root.addSpacing(8)
+        root.addLayout(btn_row)
+
+        self.setStyleSheet(_get_settings_dialog_stylesheet(is_light))
+        self.adjustSize()
+        self.setFixedSize(self.size())
+
+    def keyPressEvent(self, event):
+        if event.key() == Qt.Key.Key_Escape:
+            self.reject()
+            event.accept()
+            return
+        super().keyPressEvent(event)
+
+    def closeEvent(self, event):
+        self._accepted = False
+        self.reject()
+        event.accept()
+
+    @property
+    def is_accepted(self) -> bool:
+        return self._accepted
+
+    @property
+    def custom_key(self) -> str:
+        return self._custom_key
+
+
+def _get_settings_dialog_stylesheet(is_light: bool) -> str:
+    """Delegates to the centralized, unified Material Design dialog stylesheet."""
+    return get_dialog_stylesheet(is_light)
 
 
 class SettingsDialog(QDialog):
     """
     Polished, secure Settings dialog providing:
-    1. Extension API key inspection and copy with visible Show/Hide toggle.
+    1. API key inspection, regeneration, and custom merchant key configuration.
     2. Dynamic CORS policy configuration (Allowlist mode vs Allow All mode).
     """
     def __init__(self, parent=None):
@@ -442,51 +405,117 @@ class SettingsDialog(QDialog):
         self.setMinimumWidth(520)
 
         root = QVBoxLayout(self)
-        root.setContentsMargins(22, 22, 22, 18)
+        root.setContentsMargins(24, 22, 24, 24)
         root.setSpacing(14)
 
         headline = QLabel("Settings")
-        headline.setStyleSheet(f"color:{colors['text_primary']}; font-size: 14pt; font-weight: 800; padding: 2px 0px;")
+        headline.setStyleSheet(f"color:{colors['text_primary']}; font-size: 13.5pt; font-weight: 800; padding: 0px 0px 2px 0px;")
         root.addWidget(headline)
 
-        # ── 1. Extension API Key Section ──
-        key_section_lbl = QLabel("Extension API Key")
-        key_section_lbl.setStyleSheet(f"color:{colors['text_primary']}; font-size: 11pt; font-weight: 700; padding: 2px 0px;")
-        root.addWidget(key_section_lbl)
+        # ── 1. API Key Section ──
+        key_header_row = QHBoxLayout()
+        key_header_row.setContentsMargins(0, 0, 0, 0)
+        key_header_row.setSpacing(8)
 
-        key_desc_lbl = QLabel("Authenticate the browser extension with this connector.")
-        key_desc_lbl.setStyleSheet(f"color:{colors['text_muted']}; font-size: 9pt; padding: 0px 0px 2px 0px;")
+        key_section_lbl = QLabel("API Key")
+        key_section_lbl.setStyleSheet(f"color:{colors['text_primary']}; font-size: 11pt; font-weight: 700;")
+        key_header_row.addWidget(key_section_lbl, 0, Qt.AlignmentFlag.AlignVCenter)
+        key_header_row.addStretch()
+
+        self.key_badge = QLabel()
+        self.key_badge.setObjectName("keyBadge")
+        key_header_row.addWidget(self.key_badge, 0, Qt.AlignmentFlag.AlignVCenter)
+        root.addLayout(key_header_row)
+
+        key_desc_lbl = QLabel("Authentication credential for connected applications and browser extensions.")
+        key_desc_lbl.setStyleSheet(f"color:{colors['text_muted']}; font-size: 9pt;")
         root.addWidget(key_desc_lbl)
 
-        key_row = QHBoxLayout()
-        key_row.setSpacing(10)
+        # Primary Standard Actions Row (Auto-Generated 256-bit Key)
+        key_primary_row = QHBoxLayout()
+        key_primary_row.setSpacing(8)
 
         self.btn_copy_key = QPushButton("Copy Key")
-        self.btn_copy_key.setObjectName("actionBtn")
+        self.btn_copy_key.setObjectName("tonalActionBtn")
+        self.btn_copy_key.setFixedHeight(34)
+        self.btn_copy_key.setIcon(QIcon(_resolve_asset_path("icons/content_copy.svg")))
         self.btn_copy_key.clicked.connect(self._copy_key)
-        key_row.addWidget(self.btn_copy_key)
+        key_primary_row.addWidget(self.btn_copy_key, 2)
 
         self.btn_regenerate_key = QPushButton("Regenerate Key")
         self.btn_regenerate_key.setObjectName("actionBtn")
+        self.btn_regenerate_key.setFixedHeight(34)
+        self.btn_regenerate_key.setIcon(QIcon(_resolve_asset_path("icons/refresh.svg")))
         self.btn_regenerate_key.clicked.connect(self._regenerate_key)
-        key_row.addWidget(self.btn_regenerate_key)
-        key_row.addStretch()
+        key_primary_row.addWidget(self.btn_regenerate_key, 1)
 
-        root.addLayout(key_row)
+        root.addLayout(key_primary_row)
+
+        # ── Advanced / Legacy Integration Section (Lower Hierarchy) ──
+        legacy_card = QFrame()
+        legacy_card.setObjectName("legacyCard")
+        legacy_card.setStyleSheet(
+            f"QFrame#legacyCard {{ "
+            f"background-color: {'rgba(241, 245, 249, 0.6)' if is_light else 'rgba(30, 41, 59, 0.35)'}; "
+            f"border: 1px dashed {'#cbd5e1' if is_light else '#334155'}; "
+            f"border-radius: 6px; padding: 8px 10px; }}"
+        )
+        legacy_layout = QVBoxLayout(legacy_card)
+        legacy_layout.setContentsMargins(10, 8, 10, 8)
+        legacy_layout.setSpacing(6)
+
+        legacy_header_row = QHBoxLayout()
+        legacy_title = QLabel("Third-Party Integrations")
+        legacy_title.setStyleSheet(f"color:{colors['text_secondary']}; font-size: 8.5pt; font-weight: 700;")
+        legacy_header_row.addWidget(legacy_title)
+        legacy_header_row.addStretch()
+        legacy_layout.addLayout(legacy_header_row)
+
+        legacy_desc = QLabel(
+            "Standard merchants use the auto-generated 256-bit token. "
+            "Configure a custom key only if your third-party software requires a fixed pre-shared credential."
+        )
+        legacy_desc.setWordWrap(True)
+        legacy_desc.setStyleSheet(f"color:{colors['text_muted']}; font-size: 8pt; line-height: 1.3;")
+        legacy_layout.addWidget(legacy_desc)
+
+        legacy_btn_row = QHBoxLayout()
+        legacy_btn_row.setSpacing(8)
+
+        self.btn_set_custom_key = QPushButton("Set Custom Key...")
+        self.btn_set_custom_key.setObjectName("subtleActionBtn")
+        self.btn_set_custom_key.setIcon(QIcon(_resolve_asset_path("icons/key.svg")))
+        self.btn_set_custom_key.setToolTip("Configure a custom secret key for third-party integrations")
+        self.btn_set_custom_key.setFixedHeight(30)
+        self.btn_set_custom_key.clicked.connect(self._set_custom_key)
+        legacy_btn_row.addWidget(self.btn_set_custom_key)
+
+        self.btn_revert_auto_key = QPushButton("Revert to Auto Key")
+        self.btn_revert_auto_key.setObjectName("subtleActionBtn")
+        self.btn_revert_auto_key.setIcon(QIcon(_resolve_asset_path("icons/refresh.svg")))
+        self.btn_revert_auto_key.setFixedHeight(30)
+        self.btn_revert_auto_key.clicked.connect(self._revert_to_auto_key)
+        legacy_btn_row.addWidget(self.btn_revert_auto_key)
+        legacy_btn_row.addStretch()
+
+        legacy_layout.addLayout(legacy_btn_row)
+        root.addWidget(legacy_card)
 
         # Separator
+        border_col = colors.get('border', '#334155')
         sep = QFrame()
         sep.setFrameShape(QFrame.Shape.HLine)
-        sep.setStyleSheet(f"background-color: {colors.get('border', '#334155')}; max-height: 1px;")
+        sep.setFixedHeight(1)
+        sep.setStyleSheet(f"background-color: {border_col}; border: none; margin: 4px 0px;")
         root.addWidget(sep)
 
         # ── 2. CORS & Web Access Policy Section ──
         cors_lbl = QLabel("Web Access & CORS Policy")
-        cors_lbl.setStyleSheet(f"color:{colors['text_primary']}; font-size: 10.5pt; font-weight: 700;")
+        cors_lbl.setStyleSheet(f"color:{colors['text_primary']}; font-size: 11pt; font-weight: 700;")
         root.addWidget(cors_lbl)
 
         self.radio_allowlist = QRadioButton("Restricted Allowlist (Recommended)")
-        self.radio_allow_all = QRadioButton("Allow All Origins (Custom POS / Local Dev)")
+        self.radio_allow_all = QRadioButton("Allow All Origins (Custom Applications / Local Dev)")
         self.cors_group = QButtonGroup(self)
         self.cors_group.addButton(self.radio_allowlist)
         self.cors_group.addButton(self.radio_allow_all)
@@ -499,13 +528,17 @@ class SettingsDialog(QDialog):
 
         self.radio_allowlist.toggled.connect(self._on_cors_mode_changed)
 
-        root.addWidget(self.radio_allowlist)
-        root.addWidget(self.radio_allow_all)
+        radio_layout = QVBoxLayout()
+        radio_layout.setSpacing(6)
+        radio_layout.setContentsMargins(0, 0, 0, 0)
+        radio_layout.addWidget(self.radio_allowlist)
+        radio_layout.addWidget(self.radio_allow_all)
+        root.addLayout(radio_layout)
 
         # Origins editor (showing 5-6 rows comfortably)
         self.origins_list = QListWidget()
-        self.origins_list.setMinimumHeight(175)
-        self.origins_list.setMaximumHeight(210)
+        self.origins_list.setMinimumHeight(150)
+        self.origins_list.setMaximumHeight(180)
         for origin in self.config.cors_allowed_origins:
             self.origins_list.addItem(origin)
         root.addWidget(self.origins_list)
@@ -514,15 +547,20 @@ class SettingsDialog(QDialog):
         add_origin_row.setSpacing(8)
         self.new_origin_input = QLineEdit()
         self.new_origin_input.setPlaceholderText("https://your-custom-pos.com")
+        self.new_origin_input.setFixedHeight(34)
         add_origin_row.addWidget(self.new_origin_input, 1)
 
         self.btn_add_origin = QPushButton("Add")
         self.btn_add_origin.setObjectName("actionBtn")
+        self.btn_add_origin.setFixedHeight(34)
+        self.btn_add_origin.setMinimumWidth(70)
         self.btn_add_origin.clicked.connect(self._add_origin)
         add_origin_row.addWidget(self.btn_add_origin)
 
         self.btn_remove_origin = QPushButton("Remove Selected")
         self.btn_remove_origin.setObjectName("actionBtn")
+        self.btn_remove_origin.setFixedHeight(34)
+        self.btn_remove_origin.setMinimumWidth(130)
         self.btn_remove_origin.clicked.connect(self._remove_origin)
         add_origin_row.addWidget(self.btn_remove_origin)
         root.addLayout(add_origin_row)
@@ -536,36 +574,112 @@ class SettingsDialog(QDialog):
 
         self.btn_cancel = QPushButton("Cancel")
         self.btn_cancel.setObjectName("cancelBtn")
+        self.btn_cancel.setFixedHeight(36)
+        self.btn_cancel.setMinimumWidth(85)
         self.btn_cancel.clicked.connect(self.reject)
         btn_row.addWidget(self.btn_cancel)
 
         self.btn_save = QPushButton("Save Changes")
         self.btn_save.setObjectName("saveBtn")
+        self.btn_save.setFixedHeight(36)
+        self.btn_save.setMinimumWidth(115)
         self.btn_save.clicked.connect(self._save_and_close)
         btn_row.addWidget(self.btn_save)
+        root.addSpacing(8)
         root.addLayout(btn_row)
 
         self.setStyleSheet(_get_settings_dialog_stylesheet(is_light))
+        self._update_key_badge()
         self.adjustSize()
 
-    def _regenerate_key(self):
+    def _update_key_badge(self):
+        is_custom = getattr(self.config, "is_custom_api_key", False)
+        if hasattr(self, "btn_revert_auto_key"):
+            self.btn_revert_auto_key.setVisible(is_custom)
+        if is_custom:
+            self.key_badge.setText("● Active Key: Custom Merchant Key")
+            self.key_badge.setStyleSheet(
+                "color: #10b981; font-size: 8.5pt; font-weight: 700; "
+                "background-color: rgba(16, 185, 129, 0.12); "
+                "border: 1px solid rgba(16, 185, 129, 0.35); "
+                "border-radius: 9px; padding: 2px 8px;"
+            )
+        else:
+            self.key_badge.setText("● Active Key: Auto-Generated (256-bit)")
+            self.key_badge.setStyleSheet(
+                "color: #38bdf8; font-size: 8.5pt; font-weight: 700; "
+                "background-color: rgba(56, 189, 248, 0.12); "
+                "border: 1px solid rgba(56, 189, 248, 0.35); "
+                "border-radius: 9px; padding: 2px 8px;"
+            )
+
+    def _revert_to_auto_key(self):
         prompt = ModernPromptDialog(
             parent=self,
-            title="Regenerate API Key",
-            headline_text="Regenerate Extension API Key?",
+            title="Revert to Auto Key",
+            headline_text="Revert to Auto-Generated Key",
             info_text=(
-                "Generating a new API key will invalidate the current key. "
-                "You will need to update the key in the browser extension settings. "
-                "Are you sure you want to continue?"
+                "Invalidates the active custom merchant key and restores a cryptographically secure "
+                "256-bit auto-generated credential."
             ),
+            yes_text="Revert Key",
+            no_text="Cancel",
         )
         prompt.exec()
         if not prompt.is_accepted:
             return
 
         self.config.regenerate_api_key()
+        self._update_key_badge()
+        self.btn_revert_auto_key.setText("Key Restored!")
+        QTimer.singleShot(2000, lambda: self.btn_revert_auto_key.setText("Revert to Auto Key"))
+
+    def _regenerate_key(self):
+        prompt = ModernPromptDialog(
+            parent=self,
+            title="Regenerate API Key",
+            headline_text="Regenerate API Key",
+            info_text=(
+                "Invalidates the active API key immediately. "
+                "Connected applications and browser extensions must be reconfigured with the newly generated key."
+            ),
+            yes_text="Regenerate",
+            no_text="Cancel",
+        )
+        prompt.exec()
+        if not prompt.is_accepted:
+            return
+
+        self.config.regenerate_api_key()
+        self._update_key_badge()
         self.btn_regenerate_key.setText("Key Regenerated!")
         QTimer.singleShot(2000, lambda: self.btn_regenerate_key.setText("Regenerate Key"))
+
+    def _set_custom_key(self):
+        dlg = CustomApiKeyDialog(self)
+        dlg.exec()
+        if not (dlg.is_accepted and dlg.custom_key):
+            return
+
+        prompt = ModernPromptDialog(
+            parent=self,
+            title="Custom API Key",
+            headline_text="Apply Custom API Key",
+            info_text=(
+                "Replaces the active API key with the user-defined secret. "
+                "Connected applications and browser extensions must be updated to maintain authentication."
+            ),
+            yes_text="Apply",
+            no_text="Cancel",
+        )
+        prompt.exec()
+        if not prompt.is_accepted:
+            return
+
+        self.config.set_custom_api_key(dlg.custom_key)
+        self._update_key_badge()
+        self.btn_set_custom_key.setText("Key Saved!")
+        QTimer.singleShot(2000, lambda: self.btn_set_custom_key.setText("Set Custom Key..."))
 
     def _on_cors_mode_changed(self, is_allowlist_checked: bool):
         self.origins_list.setEnabled(is_allowlist_checked)
@@ -599,8 +713,10 @@ class SettingsDialog(QDialog):
         prompt = ModernPromptDialog(
             parent=self,
             title="Save Settings",
-            headline_text="Save Configuration Changes?",
-            info_text="Are you sure you want to save the updated allowed origins policy?",
+            headline_text="Save Origin Policy",
+            info_text="Apply the updated CORS origin policy to incoming local HTTP and WebSocket requests.",
+            yes_text="Save",
+            no_text="Cancel",
         )
         prompt.exec()
         if not prompt.is_accepted:

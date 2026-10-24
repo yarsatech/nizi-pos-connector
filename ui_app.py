@@ -23,6 +23,12 @@ from PyQt6.QtGui import QFont, QGuiApplication, QIcon, QDesktopServices, QPixmap
 from config import APP_NAME
 from theme_support import prefers_light_theme, get_flyout_stylesheet, get_theme_tokens
 from ota.firmware_api import get_languages, build_update_url, extract_model_code
+from ui_components import _resolve_asset_path
+
+def _get_icon(name: str) -> QIcon:
+    """Resolve and return a QIcon for a Material Design SVG asset."""
+    filename = f"icons/{name}.svg" if not name.endswith(".svg") else f"icons/{name}"
+    return QIcon(_resolve_asset_path(filename))
 
 logger = logging.getLogger(__name__)
 
@@ -54,6 +60,20 @@ class SafeComboBox(QComboBox):
             super().wheelEvent(event)
         else:
             event.ignore()
+
+
+class SafeSlider(QSlider):
+    """A clean, scroll-safe QSlider that:
+    - Completely ignores mouse wheel events to prevent accidental adjustments when scrolling
+      parent containers.
+    - Adheres strictly to ClickFocus policy so mere hovering never acquires focus.
+    """
+    def __init__(self, orientation=Qt.Orientation.Horizontal, parent=None):
+        super().__init__(orientation, parent)
+        self.setFocusPolicy(Qt.FocusPolicy.ClickFocus)
+
+    def wheelEvent(self, event):
+        event.ignore()
 
 
 class TrayFlyout(QWidget):
@@ -213,20 +233,22 @@ class TrayFlyout(QWidget):
         self.firmware_label.setVisible(False)
         card_layout.addWidget(self.firmware_label)
 
-        self.update_available_label = QLabel("⚠ Firmware update available")
+        self.update_available_label = QLabel("Firmware update available")
         self.update_available_label.setObjectName("instructionLabel")
         self.update_available_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.update_available_label.setStyleSheet(f"color: {self.theme_tokens["warning_text"]}; font-weight: 600;")
+        self.update_available_label.setStyleSheet(f"color: {self.theme_tokens['warning_text']}; font-weight: 600;")
         self.update_available_label.setVisible(False)
         card_layout.addWidget(self.update_available_label)
 
-        self.btn_update_firmware = QPushButton("🔄  Open Update Page")
+        self.btn_update_firmware = QPushButton("Open Update Page")
+        self.btn_update_firmware.setIcon(_get_icon("download"))
         self.btn_update_firmware.setObjectName("warningBtn")
         self.btn_update_firmware.clicked.connect(self._open_firmware_update_page)
         self.btn_update_firmware.setVisible(False)
         card_layout.addWidget(self.btn_update_firmware)
 
         self.btn_action = QPushButton("Connect Now")
+        self.btn_action.setIcon(_get_icon("power"))
         self.btn_action.setObjectName("connectBtn")
         self.btn_action.clicked.connect(self._manual_connect)
         card_layout.addWidget(self.btn_action)
@@ -242,6 +264,7 @@ class TrayFlyout(QWidget):
         port_header.addStretch()
         
         self.btn_rescan = QPushButton("Rescan")
+        self.btn_rescan.setIcon(_get_icon("refresh"))
         self.btn_rescan.setObjectName("ghostBtn")
         self.btn_rescan.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_rescan.clicked.connect(self._rescan_ports)
@@ -313,7 +336,8 @@ class TrayFlyout(QWidget):
         
         footer_layout = QHBoxLayout()
 
-        self.btn_settings = QPushButton("⚙  Settings")
+        self.btn_settings = QPushButton("Settings")
+        self.btn_settings.setIcon(_get_icon("settings"))
         self.btn_settings.setObjectName("ghostBtn")
         self.btn_settings.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_settings.clicked.connect(self._open_settings)
@@ -322,6 +346,7 @@ class TrayFlyout(QWidget):
         footer_layout.addStretch()
 
         self.btn_quit = QPushButton("Quit")
+        self.btn_quit.setIcon(_get_icon("cancel"))
         self.btn_quit.setObjectName("ghostBtn")
         self.btn_quit.clicked.connect(self._quit_app)
         footer_layout.addWidget(self.btn_quit)
@@ -378,6 +403,7 @@ class TrayFlyout(QWidget):
 
         layout.addSpacing(12)
         self.btn_send_status = QPushButton("Send")
+        self.btn_send_status.setIcon(_get_icon("send"))
         self.btn_send_status.setObjectName("primaryBtn")
         self.btn_send_status.clicked.connect(self._send_status)
         layout.addWidget(self.btn_send_status)
@@ -412,6 +438,7 @@ class TrayFlyout(QWidget):
 
         layout.addSpacing(12)
         self.btn_send_qr = QPushButton("Send")
+        self.btn_send_qr.setIcon(_get_icon("send"))
         self.btn_send_qr.setObjectName("primaryBtn")
         self.btn_send_qr.clicked.connect(self._send_qr)
         layout.addWidget(self.btn_send_qr)
@@ -446,6 +473,7 @@ class TrayFlyout(QWidget):
 
         layout.addSpacing(12)
         self.btn_send_text = QPushButton("Send")
+        self.btn_send_text.setIcon(_get_icon("send"))
         self.btn_send_text.setObjectName("primaryBtn")
         self.btn_send_text.clicked.connect(self._send_text)
         layout.addWidget(self.btn_send_text)
@@ -472,7 +500,7 @@ class TrayFlyout(QWidget):
         wall_card_layout.setSpacing(6)
 
         wall_title = QLabel("Wallpaper Image (Saves on Device)")
-        wall_title.setStyleSheet(f"font-weight: 700; color: {self.theme_tokens["accent"]}; font-size: 10pt;")
+        wall_title.setStyleSheet(f"font-weight: 700; color: {self.theme_tokens["text_primary"]}; font-size: 10pt;")
         wall_card_layout.addWidget(wall_title)
 
         self.wallpaper_file_path = None
@@ -483,6 +511,7 @@ class TrayFlyout(QWidget):
         wall_card_layout.addWidget(self.wallpaper_slot)
 
         self.btn_select_wallpaper = QPushButton("Browse Wallpaper…")
+        self.btn_select_wallpaper.setIcon(_get_icon("folder_open"))
         self.btn_select_wallpaper.setObjectName("secondaryBtn")
         self.btn_select_wallpaper.clicked.connect(self._select_wallpaper)
         wall_card_layout.addWidget(self.btn_select_wallpaper)
@@ -510,6 +539,7 @@ class TrayFlyout(QWidget):
         wall_card_layout.addWidget(self.wallpaper_size)
 
         self.btn_upload_wallpaper = QPushButton("Save Wallpaper to Device")
+        self.btn_upload_wallpaper.setIcon(_get_icon("download"))
         self.btn_upload_wallpaper.setObjectName("primaryBtn")
         self.btn_upload_wallpaper.clicked.connect(self._upload_wallpaper)
         self.btn_upload_wallpaper.setEnabled(False)
@@ -525,12 +555,13 @@ class TrayFlyout(QWidget):
         temp_card_layout.setSpacing(6)
 
         temp_title = QLabel("Temporary Image (Real-time Preview)")
-        temp_title.setStyleSheet(f"font-weight: 700; color: {self.theme_tokens["accent"]}; font-size: 10pt;")
+        temp_title.setStyleSheet(f"font-weight: 700; color: {self.theme_tokens["text_primary"]}; font-size: 10pt;")
         temp_card_layout.addWidget(temp_title)
 
         self.preview_file_path = None
 
         self.btn_select_preview = QPushButton("Browse Preview Image…")
+        self.btn_select_preview.setIcon(_get_icon("folder_open"))
         self.btn_select_preview.setObjectName("secondaryBtn")
         self.btn_select_preview.clicked.connect(self._select_preview_image)
         temp_card_layout.addWidget(self.btn_select_preview)
@@ -558,6 +589,7 @@ class TrayFlyout(QWidget):
         temp_card_layout.addWidget(self.preview_size)
 
         self.btn_upload_preview = QPushButton("Show Preview on Device")
+        self.btn_upload_preview.setIcon(_get_icon("send"))
         self.btn_upload_preview.setObjectName("primaryBtn")
         self.btn_upload_preview.clicked.connect(self._upload_preview_image)
         self.btn_upload_preview.setEnabled(False)
@@ -627,6 +659,7 @@ class TrayFlyout(QWidget):
 
         layout.addSpacing(12)
         self.btn_set_idle = QPushButton("Set Idle Mode")
+        self.btn_set_idle.setIcon(_get_icon("bedtime"))
         self.btn_set_idle.setObjectName("primaryBtn")
         self.btn_set_idle.clicked.connect(self._send_idle_mode)
         layout.addWidget(self.btn_set_idle)
@@ -659,7 +692,7 @@ class TrayFlyout(QWidget):
         vol_header.addWidget(self.volume_val_label)
         layout.addLayout(vol_header)
 
-        self.volume_slider = QSlider(Qt.Orientation.Horizontal)
+        self.volume_slider = SafeSlider(Qt.Orientation.Horizontal)
         self.volume_slider.setRange(0, 100)
         self.volume_slider.setValue(80)
         self.volume_slider.valueChanged.connect(lambda v: self.volume_val_label.setText(f"{v}%"))
@@ -681,7 +714,7 @@ class TrayFlyout(QWidget):
         bright_header.addWidget(self.brightness_val_label)
         layout.addLayout(bright_header)
 
-        self.brightness_slider = QSlider(Qt.Orientation.Horizontal)
+        self.brightness_slider = SafeSlider(Qt.Orientation.Horizontal)
         self.brightness_slider.setRange(0, 100)
         self.brightness_slider.setValue(80)
         self.brightness_slider.valueChanged.connect(lambda v: self.brightness_val_label.setText(f"{v}%"))
@@ -710,6 +743,7 @@ class TrayFlyout(QWidget):
         layout.addWidget(self.timeout_pf)
 
         self.btn_set_timeout = QPushButton("Set Timeouts")
+        self.btn_set_timeout.setIcon(_get_icon("hourglass_top"))
         self.btn_set_timeout.setObjectName("primaryBtn")
         self.btn_set_timeout.clicked.connect(self._send_timeout)
         layout.addWidget(self.btn_set_timeout)
@@ -729,12 +763,14 @@ class TrayFlyout(QWidget):
         # ── Bluetooth ───────────────────────────────────────────────────
         layout.addWidget(self._make_field_label("Bluetooth"))
         ble_row = QHBoxLayout()
-        self.btn_ble_on = QPushButton("📡  BLE ON")
+        self.btn_ble_on = QPushButton("BLE ON")
+        self.btn_ble_on.setIcon(_get_icon("bluetooth"))
         self.btn_ble_on.setObjectName("secondaryBtn")
         self.btn_ble_on.clicked.connect(lambda: self._send_ble(True))
         ble_row.addWidget(self.btn_ble_on)
 
-        self.btn_ble_off = QPushButton("📡  BLE OFF")
+        self.btn_ble_off = QPushButton("BLE OFF")
+        self.btn_ble_off.setIcon(_get_icon("bluetooth_disabled"))
         self.btn_ble_off.setObjectName("secondaryBtn")
         self.btn_ble_off.clicked.connect(lambda: self._send_ble(False))
         ble_row.addWidget(self.btn_ble_off)
@@ -742,12 +778,14 @@ class TrayFlyout(QWidget):
 
         # BLE PIN management row
         ble_pin_row = QHBoxLayout()
-        self.btn_ble_change_pin = QPushButton("🔑  Change PIN")
+        self.btn_ble_change_pin = QPushButton("Change PIN")
+        self.btn_ble_change_pin.setIcon(_get_icon("key"))
         self.btn_ble_change_pin.setObjectName("secondaryBtn")
         self.btn_ble_change_pin.clicked.connect(self._show_change_pin_dialog)
         ble_pin_row.addWidget(self.btn_ble_change_pin)
 
-        self.btn_ble_reset_pin = QPushButton("🔄  Reset PIN")
+        self.btn_ble_reset_pin = QPushButton("Reset PIN")
+        self.btn_ble_reset_pin.setIcon(_get_icon("lock_reset"))
         self.btn_ble_reset_pin.setObjectName("secondaryBtn")
         self.btn_ble_reset_pin.clicked.connect(self._confirm_reset_pin)
         ble_pin_row.addWidget(self.btn_ble_reset_pin)
@@ -773,7 +811,8 @@ class TrayFlyout(QWidget):
         layout.addWidget(self.language_dropdown)
 
         layout.addSpacing(12)
-        self.btn_update_language = QPushButton("🔄 Download Language Firmware")
+        self.btn_update_language = QPushButton("Download Language Firmware")
+        self.btn_update_language.setIcon(_get_icon("download"))
         self.btn_update_language.setObjectName("secondaryBtn")
         self.btn_update_language.clicked.connect(self._open_language_update_page)
         self.btn_update_language.setEnabled(False)
@@ -795,12 +834,14 @@ class TrayFlyout(QWidget):
         buzzer_inner.setSpacing(8)
 
         buzzer_row = QHBoxLayout()
-        self.btn_buzzer_on = QPushButton("🔔  Enable")
+        self.btn_buzzer_on = QPushButton("Enable")
+        self.btn_buzzer_on.setIcon(_get_icon("notifications"))
         self.btn_buzzer_on.setObjectName("secondaryBtn")
         self.btn_buzzer_on.clicked.connect(self._send_buzzer_on)
         buzzer_row.addWidget(self.btn_buzzer_on)
 
-        self.btn_buzzer_off = QPushButton("🔕  Disable")
+        self.btn_buzzer_off = QPushButton("Disable")
+        self.btn_buzzer_off.setIcon(_get_icon("notifications_off"))
         self.btn_buzzer_off.setObjectName("secondaryBtn")
         self.btn_buzzer_off.clicked.connect(self._send_buzzer_off)
         buzzer_row.addWidget(self.btn_buzzer_off)
@@ -824,12 +865,14 @@ class TrayFlyout(QWidget):
         layout.addWidget(self._make_field_label("Application Logs"))
 
         log_btn_row = QHBoxLayout()
-        self.btn_open_log = QPushButton("📂 Open Log File")
+        self.btn_open_log = QPushButton("Open Log File")
+        self.btn_open_log.setIcon(_get_icon("folder_open"))
         self.btn_open_log.setObjectName("secondaryBtn")
         self.btn_open_log.clicked.connect(self._open_log_file)
         log_btn_row.addWidget(self.btn_open_log)
 
-        self.btn_refresh_log = QPushButton("🔄 Refresh Logs")
+        self.btn_refresh_log = QPushButton("Refresh Logs")
+        self.btn_refresh_log.setIcon(_get_icon("refresh"))
         self.btn_refresh_log.setObjectName("secondaryBtn")
         self.btn_refresh_log.clicked.connect(self._refresh_logs)
         log_btn_row.addWidget(self.btn_refresh_log)
@@ -851,40 +894,47 @@ class TrayFlyout(QWidget):
         layout.setSpacing(12)
 
         row1 = QHBoxLayout()
-        self.btn_idle = QPushButton("💤 IDLE")
+        self.btn_idle = QPushButton("IDLE")
+        self.btn_idle.setIcon(_get_icon("bedtime"))
         self.btn_idle.setObjectName("secondaryBtn")
         self.btn_idle.clicked.connect(self._quick_send_idle)
         row1.addWidget(self.btn_idle)
 
-        self.btn_wake = QPushButton("☀️ WAKE")
+        self.btn_wake = QPushButton("WAKE")
+        self.btn_wake.setIcon(_get_icon("light_mode"))
         self.btn_wake.setObjectName("secondaryBtn")
         self.btn_wake.clicked.connect(self._quick_send_wake)
         row1.addWidget(self.btn_wake)
         layout.addLayout(row1)
 
         row2 = QHBoxLayout()
-        self.btn_restart = QPushButton("🔄 RESTART")
+        self.btn_restart = QPushButton("RESTART")
+        self.btn_restart.setIcon(_get_icon("restart_alt"))
         self.btn_restart.setObjectName("warningBtn")
         self.btn_restart.clicked.connect(self._quick_send_restart)
         row2.addWidget(self.btn_restart)
 
-        self.btn_format = QPushButton("🗑 FORMAT")
+        self.btn_format = QPushButton("FORMAT")
+        self.btn_format.setIcon(_get_icon("delete_forever"))
         self.btn_format.setObjectName("dangerBtn")
         self.btn_format.clicked.connect(self._quick_send_format)
         row2.addWidget(self.btn_format)
         layout.addLayout(row2)
 
-        self.btn_quick_qr = QPushButton("📲 Send QR")
+        self.btn_quick_qr = QPushButton("Send QR")
+        self.btn_quick_qr.setIcon(_get_icon("qr_code_2"))
         self.btn_quick_qr.setObjectName("secondaryBtn")
         self.btn_quick_qr.clicked.connect(self._send_qr)
         layout.addWidget(self.btn_quick_qr)
 
-        self.btn_quick_wait = QPushButton("⏳ WAIT")
+        self.btn_quick_wait = QPushButton("WAIT")
+        self.btn_quick_wait.setIcon(_get_icon("hourglass_top"))
         self.btn_quick_wait.setObjectName("secondaryBtn")
         self.btn_quick_wait.clicked.connect(self._quick_send_wait)
         layout.addWidget(self.btn_quick_wait)
 
-        self.btn_quick_pass = QPushButton("✅ PASS")
+        self.btn_quick_pass = QPushButton("PASS")
+        self.btn_quick_pass.setIcon(_get_icon("check_circle"))
         self.btn_quick_pass.setObjectName("secondaryBtn")
         self.btn_quick_pass.clicked.connect(self._quick_send_pass)
         layout.addWidget(self.btn_quick_pass)
@@ -1540,6 +1590,7 @@ class TrayFlyout(QWidget):
                 self.btn_update_firmware.setVisible(False)
 
             self.btn_action.setText("Disconnect")
+            self.btn_action.setIcon(_get_icon("power_off"))
             self.btn_action.setObjectName("disconnectBtn")
             self.btn_action.setStyleSheet("")  # re-apply from stylesheet
             self.btn_action.style().unpolish(self.btn_action)
@@ -1563,6 +1614,7 @@ class TrayFlyout(QWidget):
             self.update_available_label.setVisible(False)
             self.btn_update_firmware.setVisible(False)
             self.btn_action.setText("Connect Now")
+            self.btn_action.setIcon(_get_icon("power"))
             self.btn_action.setObjectName("connectBtn")
             self.btn_action.setStyleSheet("")
             self.btn_action.style().unpolish(self.btn_action)
@@ -1604,6 +1656,7 @@ class TrayFlyout(QWidget):
             
             self.btn_action.setEnabled(False)
             self.btn_action.setText("Connecting…")
+            self.btn_action.setIcon(_get_icon("hourglass_top"))
 
             def _do():
                 res = self.device.connect(port=selected_port)
@@ -1663,10 +1716,10 @@ class TrayFlyout(QWidget):
         dlg = ModernPromptDialog(
             parent=self,
             title="BLE Security Warning",
-            headline_text="⚠ Default BLE PIN Active",
-            info_text="Your BLE PIN is currently set to the default."
-                      "\n\nFor security, we recommend changing it.\n\n"
-                      "Would you like to change your BLE PIN now?"
+            headline_text="Default BLE PIN Active",
+            info_text="Terminal Bluetooth interface is using the factory default PIN. Configure a secure 6-digit PIN to prevent unauthorized pairings.",
+            yes_text="Change PIN",
+            no_text="Dismiss",
         )
         dlg.exec()
         if dlg.is_accepted:
@@ -1697,9 +1750,10 @@ class TrayFlyout(QWidget):
         dlg = ModernPromptDialog(
             parent=self,
             title="Reset BLE PIN",
-            headline_text="Reset BLE PIN?",
-            info_text="This will reset your BLE PIN back to the default MAC-derived PIN. "
-                      "The device will reboot.\n\nAre you sure?"
+            headline_text="Reset BLE PIN to Default",
+            info_text="Restores the Bluetooth interface to the factory MAC-derived PIN and reboots the hardware device.",
+            yes_text="Reset PIN",
+            no_text="Cancel",
         )
         dlg.exec()
         if dlg.is_accepted:

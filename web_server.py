@@ -5,8 +5,11 @@ Nizi POS Connector — Flask + Flask-SocketIO server (REST + realtime) for the U
 import logging
 import os
 import threading
+import time
+from collections import deque
 import io
 from PIL import Image
+Image.MAX_IMAGE_PIXELS = 2000 * 2000
 from typing import Optional
 
 from flask import Flask, jsonify, request, send_from_directory, Response
@@ -40,7 +43,7 @@ device = DeviceManager()
 
 # ── Security & CORS Engine ───────────────────────────────────────────────
 
-PUBLIC_PATHS = frozenset({"/", "/favicon.ico"})
+PUBLIC_PATHS = frozenset({"/", "/favicon.ico", "/api/theme.css"})
 PUBLIC_PREFIXES = ("/assets/", "/static/")
 
 
@@ -72,6 +75,73 @@ def is_origin_allowed(origin: str | None) -> bool:
     return clean_origin in allowed
 
 
+
+# ── In-Memory Auth Rate Limiting / Brute-Force Throttle ───────────────────
+_AUTH_LOCK = threading.Lock()
+_FAILED_AUTH_LOG: dict[str, deque[float]] = {}
+_BLOCKED_CLIENTS: dict[str, float] = {}
+
+MAX_FAILED_AUTH_ATTEMPTS = 10
+AUTH_WINDOW_SECONDS = 60.0
+AUTH_BLOCK_DURATION_SECONDS = 60.0
+
+
+def _is_client_rate_limited(client_ip: str) -> bool:
+    """Check if the client IP is currently blocked due to excessive failed auth attempts."""
+    now = time.time()
+    with _AUTH_LOCK:
+        block_until = _BLOCKED_CLIENTS.get(client_ip, 0.0)
+        if now < block_until:
+            return True
+        if client_ip in _BLOCKED_CLIENTS:
+            del _BLOCKED_CLIENTS[client_ip]
+        return False
+
+
+def _record_failed_auth(client_ip: str) -> bool:
+    """Record a failed auth attempt. Blocks client if threshold (10 / min) is exceeded."""
+    now = time.time()
+    with _AUTH_LOCK:
+        # Periodic pruning of expired entries to prevent memory exhaustion
+        if len(_FAILED_AUTH_LOG) > 200:
+            expired_cutoff = now - AUTH_WINDOW_SECONDS
+            stale_ips = [ip for ip, atts in _FAILED_AUTH_LOG.items() if not atts or atts[-1] < expired_cutoff]
+            for ip in stale_ips:
+                del _FAILED_AUTH_LOG[ip]
+
+        attempts = _FAILED_AUTH_LOG.setdefault(client_ip, deque())
+        cutoff = now - AUTH_WINDOW_SECONDS
+        while attempts and attempts[0] < cutoff:
+            attempts.popleft()
+        attempts.append(now)
+
+        if len(attempts) >= MAX_FAILED_AUTH_ATTEMPTS:
+            _BLOCKED_CLIENTS[client_ip] = now + AUTH_BLOCK_DURATION_SECONDS
+            attempts.clear()
+            logger.warning(
+                "Excessive failed auth attempts from %s (%d in %.0fs). Client blocked for %.0fs.",
+                client_ip,
+                MAX_FAILED_AUTH_ATTEMPTS,
+                AUTH_WINDOW_SECONDS,
+                AUTH_BLOCK_DURATION_SECONDS,
+            )
+            return True
+        return False
+
+
+def _clear_failed_auth(client_ip: str) -> None:
+    """Clear recorded failure timestamps upon successful authentication."""
+    with _AUTH_LOCK:
+        _FAILED_AUTH_LOG.pop(client_ip, None)
+
+
+def reset_rate_limits() -> None:
+    """Reset all in-memory rate limiting state (useful for tests and manual resets)."""
+    with _AUTH_LOCK:
+        _FAILED_AUTH_LOG.clear()
+        _BLOCKED_CLIENTS.clear()
+
+
 @app.before_request
 def enforce_security_and_cors():
     """
@@ -96,6 +166,19 @@ def enforce_security_and_cors():
     if request.path in PUBLIC_PATHS or any(request.path.startswith(p) for p in PUBLIC_PREFIXES):
         return None
 
+    client_ip = request.remote_addr or "127.0.0.1"
+
+    # Brute-force throttling / rate-limiting
+    if _is_client_rate_limited(client_ip):
+        logger.warning("Throttled request to %s from rate-limited client %s", request.path, client_ip)
+        resp = jsonify({
+            "success": False,
+            "error": "Too Many Requests",
+            "message": "Too many failed authentication attempts. Please wait before retrying."
+        })
+        resp.headers["Retry-After"] = str(int(AUTH_BLOCK_DURATION_SECONDS))
+        return resp, 429
+
     # Enforce API key authentication (default-deny)
     expected_key = config.api_key
     if not expected_key:
@@ -104,21 +187,40 @@ def enforce_security_and_cors():
 
     provided_key = request.headers.get("X-API-Key")
     if not constant_time_compare(provided_key, expected_key):
-        logger.warning("Unauthorized request to %s from %s", request.path, request.remote_addr)
+        if provided_key:
+            _record_failed_auth(client_ip)
+        logger.warning("Unauthorized request to %s from %s", request.path, client_ip)
         return jsonify({"success": False, "error": "Unauthorized"}), 401
 
+    _clear_failed_auth(client_ip)
     return None
 
 
 @app.after_request
 def add_cors_headers(response):
-    """Reflect allowed Origin without exposing credentials."""
+    """Reflect allowed Origin and inject standard banking-grade security headers."""
     origin = request.headers.get("Origin")
     if origin and is_origin_allowed(origin):
         response.headers["Access-Control-Allow-Origin"] = origin
-        response.headers["Access-Control-Allow-Headers"] = "X-API-Key, Content-Type, Authorization"
+        response.headers["Access-Control-Allow-Headers"] = "X-API-Key, Content-Type"
         response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS, PUT, DELETE"
         response.headers["Vary"] = "Origin"
+
+    # Banking-grade defensive HTTP headers (ISO 27001 A.14.1.2, OWASP A05:2021)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Content-Security-Policy"] = (
+        "default-src 'self'; "
+        "script-src 'self' 'unsafe-inline' https://cdn.socket.io; "
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+        "font-src 'self' https://fonts.gstatic.com; "
+        "img-src 'self' data:; "
+        "connect-src 'self' ws: wss:;"
+    )
+    if request.path.startswith("/api/"):
+        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+
     return response
 
 
@@ -204,7 +306,7 @@ def api_command():
         return jsonify({"success": False, "error": "Invalid or missing command."}), 400
 
     try:
-        clean_cmd = validate_serial_frame(command)
+        clean_cmd = validate_serial_frame(command, allow_admin=False)
     except ValueError as err:
         logger.warning("Rejected invalid command: %s", err)
         return jsonify({"success": False, "error": str(err)}), 400
@@ -251,6 +353,8 @@ def api_upload_image():
         img = Image.open(io.BytesIO(raw_data))
         if img.format != 'JPEG':
              return jsonify({"success": False, "error": "Invalid JPEG content."}), 400
+        if img.width > 2000 or img.height > 2000:
+             return jsonify({"success": False, "error": "Image resolution exceeds 2000x2000 limit."}), 400
         
         # Convert to RGB (to ensure JPEG compatibility, discarding alpha layer if any)
         if img.mode != "RGB":
@@ -286,6 +390,7 @@ def api_upload_image():
             
         if len(jpeg_data) > max_size:
             logger.warning(f"Could not compress image under 30KB (size: {len(jpeg_data)} bytes)")
+            return jsonify({"success": False, "error": "Image complexity exceeds maximum 30KB transmission limit."}), 400
 
         logger.info(f"Image processed: {len(jpeg_data)} bytes at quality={quality}")
 
@@ -460,6 +565,8 @@ def api_upload_idle_image():
         img = Image.open(io.BytesIO(raw_data))
         if img.format != 'JPEG':
             return jsonify({"success": False, "error": "Invalid JPEG content."}), 400
+        if img.width > 2000 or img.height > 2000:
+            return jsonify({"success": False, "error": "Image resolution exceeds 2000x2000 limit."}), 400
 
         if img.mode != "RGB":
             img = img.convert("RGB")
@@ -491,6 +598,7 @@ def api_upload_idle_image():
 
         if len(jpeg_data) > max_size:
             logger.warning(f"Could not compress idle image under 30KB (size: {len(jpeg_data)} bytes)")
+            return jsonify({"success": False, "error": "Image complexity exceeds maximum 30KB transmission limit."}), 400
 
         logger.info(f"Idle image (slot {slot}) processed: {len(jpeg_data)} bytes at quality={quality}")
 
@@ -570,11 +678,9 @@ def api_language_update_url():
     if not lang:
         return jsonify({"success": False, "error": "Missing 'language' parameter."}), 400
         
-    model = getattr(device, "model", None)
+    model = getattr(device, "model", None) or extract_model_code(device.device_id)
     if not model:
-        model = extract_model_code(device.device_id)
-    if not model:
-        model = "B31"
+        return jsonify({"success": False, "error": "Device model could not be determined. Please ensure device is connected."}), 400
         
     url = build_update_url(model=model, port=device.port, language=lang)
     return jsonify({"success": True, "url": url})
@@ -590,7 +696,7 @@ def api_prepare_for_flash():
         duration = 120
     
     device.suspend_auto_connect(duration)
-    threading.Thread(target=device.disconnect, daemon=True).start()
+    device.disconnect()
     return jsonify({"success": True, "suspended_for": duration})
 
 
@@ -616,10 +722,18 @@ def ws_connect(auth=None):
         logger.warning("Rejected SocketIO connection from disallowed Origin: %s", origin)
         return False
 
-    token = (auth or {}).get("token") or request.args.get("token")
-    if not token or not constant_time_compare(token, config.api_key):
-        logger.warning("Unauthorized SocketIO connection attempt from %s", request.remote_addr)
+    client_ip = request.remote_addr or "127.0.0.1"
+    if _is_client_rate_limited(client_ip):
+        logger.warning("Rejected SocketIO connection due to rate limiting from %s", client_ip)
         return False
+
+    token = (auth or {}).get("token")
+    if not token or not constant_time_compare(token, config.api_key):
+        _record_failed_auth(client_ip)
+        logger.warning("Unauthorized SocketIO connection attempt from %s", client_ip)
+        return False
+
+    _clear_failed_auth(client_ip)
 
     socketio.emit(
         "device_status",
@@ -637,7 +751,7 @@ def ws_connect(auth=None):
 def ws_send_command(data):
     command = (data or {}).get("command", "")
     try:
-        clean_cmd = validate_serial_frame(command)
+        clean_cmd = validate_serial_frame(command, allow_admin=False)
     except ValueError as err:
         socketio.emit("command_result", {"command": command, "success": False, "error": str(err)})
         return
@@ -654,16 +768,9 @@ def start_server(host=None, port=None):
         h = host or config.server_host
         p = port or config.server_port
         logger.info(f"Starting web server on {h}:{p}")
-        # Production WSGI server (Waitress) is always used
-        try:
-            import waitress
-            logger.info(f"Serving via production Waitress WSGI server on {h}:{p}")
-            waitress.serve(app, host=h, port=p, threads=6, ident=None)
-            return
-        except ImportError:
-            logger.warning("Waitress not available; falling back to SocketIO engine.")
-        # When running SocketIO engine with simple-websocket support
-        socketio.run(app, host=h, port=p, use_reloader=False, allow_unsafe_werkzeug=True)
+        import waitress
+        logger.info(f"Serving via production Waitress WSGI server on {h}:{p}")
+        waitress.serve(app, host=h, port=p, threads=16, ident=None)
     except Exception as e:
         logger.error(f"CRITICAL: Web server failed to start: {e}", exc_info=True)
 

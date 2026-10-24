@@ -159,6 +159,18 @@ class Config:
         self._api_key_cache = regenerate_api_key(self.config_dir)
         return self._api_key_cache
 
+    def set_custom_api_key(self, custom_key: str) -> str:
+        """Set and persist a verified integration API key."""
+        from security import save_custom_api_key
+        self._api_key_cache = save_custom_api_key(self.config_dir, custom_key)
+        return self._api_key_cache
+
+    @property
+    def is_custom_api_key(self) -> bool:
+        """Return True if the current API key is a user-defined custom key."""
+        from security import is_custom_api_key
+        return is_custom_api_key(self.config_dir)
+
     @property
     def cors_mode(self) -> str:
         """Operating CORS mode: 'allowlist' (default/restricted) or 'allow_all' (general)."""

@@ -54,15 +54,50 @@ pyinstaller build.spec
 
 ## Inno Setup (Windows installer)
 
-After a successful PyInstaller build, from the repo root:
+After a successful PyInstaller build, execute Inno Setup compilation from the repository root:
 
 ```powershell
 iscc win_setup.iss
 ```
 
-The installer expects `dist\NiziPOSConnector\` to exist.
+The installer packages `dist\NiziPOSConnector\` into `dist\NiziPOSConnector-Installer-<version>-x64.exe`.
+
+## macOS Package Installer (.pkg)
+
+Compile the macOS native application bundle, generate ICNS icons, disable bundle relocation, and generate the signed `.pkg` installer:
+
+```bash
+chmod +x build_mac.sh
+./build_mac.sh dist 1.0.0
+```
+
+The output package is created at `dist/NiziPOSConnector-Installer-<version>-macOS.pkg`.
+
+## Linux Unified Packages (.deb, .rpm, .tar.zst)
+
+Package the application across Debian, Red Hat, and Arch Linux distributions:
+
+```bash
+chmod +x build_linux.sh
+APP_VERSION=1.0.0 ./build_linux.sh all
+```
+
+Output packages are emitted to `dist/`.
+
+## Automated CI/CD Release Workflows
+
+GitHub Actions workflows automatically compile and publish platform installers and OTA bundles on tag push (`v*`):
+
+- **Windows**: `.github/workflows/windows-release.yml` (`windows-latest`)
+- **macOS**: `.github/workflows/macos-release.yml` (`macos-14` Apple Silicon runner)
+- **Linux**: `.github/workflows/linux-release.yml` (`ubuntu-22.04`)
+
+Each workflow outputs:
+1. Native platform installer (`.exe`, `.pkg`, `.deb`/`.rpm`).
+2. OTA update archive (`NiziPOSConnector-<platform>-ota-<version>.zip`).
+3. SHA-256 verification manifest (`manifest-<platform>.json`).
 
 ## Troubleshooting
 
 - **Linux tray**: Install `libappindicator3-1` (or equivalent) if the tray icon is missing.
-- **Hooks**: `build.spec` already lists common hidden imports (`flask_socketio`, serial, PyQt6, etc.).
+- **Hooks**: `build.spec` lists common hidden imports (`flask_socketio`, serial, PyQt6, etc.).

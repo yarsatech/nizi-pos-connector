@@ -103,7 +103,8 @@ def get_theme_tokens(is_light: bool) -> dict[str, str | int]:
             "card_bg_hover": "#f3f4f6",
             "input_bg": "#ffffff",
             "border": "#e5e7eb",
-            "border_active": "#fca5a5",
+            "border_hover": "#cbd5e1",
+            "border_active": "#94a3b8",
             "text_primary": "#111827",
             "text_secondary": "#374151",
             "text_muted": "#6b7280",
@@ -111,7 +112,7 @@ def get_theme_tokens(is_light: bool) -> dict[str, str | int]:
             "selection_text": "#ef4444",
             "placeholder": "#9ca3af",
             "secondary_hover_bg": "#f3f4f6",
-            "secondary_hover_border": "#fca5a5",
+            "secondary_hover_border": "#cbd5e1",
             
             "accent": "#ef4444",
             "accent_bright": "#dc2626",
@@ -139,7 +140,7 @@ def get_theme_tokens(is_light: bool) -> dict[str, str | int]:
             "ghost_text": "#9ca3af",
             "ghost_hover_text": "#ef4444",
             "radio_border": "#d1d5db",
-            "radio_hover_border": "#fca5a5",
+            "radio_hover_border": "#cbd5e1",
             
             "progress_bg": "#ffffff",
             "progress_bar_bg": "#f1f5f9",
@@ -153,7 +154,8 @@ def get_theme_tokens(is_light: bool) -> dict[str, str | int]:
             "card_bg_hover": "#1e293b",
             "input_bg": "#0b1220",
             "border": "#334155",
-            "border_active": "#475569",
+            "border_hover": "#475569",
+            "border_active": "#64748b",
             "text_primary": "#e5e7eb",
             "text_secondary": "#cbd5e1",
             "text_muted": "#94a3b8",
@@ -189,7 +191,7 @@ def get_theme_tokens(is_light: bool) -> dict[str, str | int]:
             "ghost_text": "#94a3b8",
             "ghost_hover_text": "#f87171",
             "radio_border": "#475569",
-            "radio_hover_border": "#fca5a5",
+            "radio_hover_border": "#475569",
             
             "progress_bg": "#0b1220",
             "progress_bar_bg": "#0f172a",
@@ -223,7 +225,7 @@ QComboBox {{
     font-size: {c['font_size_base']}; padding: {c['input_padding']}; border: 1px solid {c['border']};
     border-radius: {c['border_radius_md']}; background-color: {c['input_bg']}; color: {c['text_primary']}; min-height: 20px;
 }}
-QComboBox:hover {{ border-color: {c['border_active']}; }}
+QComboBox:hover {{ border-color: {c['border_hover']}; }}
 QComboBox:focus {{ border-color: {c['accent']}; background-color: {c['input_bg']}; }}
 QComboBox::drop-down {{ subcontrol-origin: padding; subcontrol-position: center right; width: 30px; border: none; background: transparent; }}
 QComboBox::down-arrow {{ image: url({arrow_path}); width: 14px; height: 14px; }}
@@ -242,6 +244,7 @@ QLineEdit {{
     font-size: {c['font_size_base']}; padding: {c['input_padding']}; border: 1px solid {c['border']};
     border-radius: {c['border_radius_md']}; background-color: {c['input_bg']}; color: {c['text_primary']};
 }}
+QLineEdit:hover {{ border-color: {c['border_hover']}; }}
 QLineEdit:focus {{ border-color: {c['accent']}; background-color: {c['input_bg']}; }}
 QLineEdit::placeholder {{ color: {c['placeholder']}; }}
 QLineEdit::selection, QTextEdit::selection {{ background-color: {c['accent']}; color: #ffffff; }}
@@ -249,6 +252,7 @@ QTextEdit {{
     font-size: {c['font_size_base']}; padding: {c['input_padding']}; border: 1px solid {c['border']};
     border-radius: {c['border_radius_md']}; background-color: {c['input_bg']}; color: {c['text_primary']};
 }}
+QTextEdit:hover {{ border-color: {c['border_hover']}; }}
 QTextEdit:focus {{ border-color: {c['accent']}; }}
 QPushButton#primaryBtn, QPushButton#connectBtn {{
     font-size: {c['font_size_base']}; padding: {c['button_padding']}; background-color: {c['accent']}; color: #ffffff;
@@ -286,49 +290,197 @@ QDialog {{ background-color: {c['window_bg']}; }}
     """
 
 def get_dialog_stylesheet(is_light: bool) -> str:
-    """Generates the PyQt stylesheet for dialog prompts (like exit and update)."""
+    """Centralized, unified Material Design stylesheet for all dialogs across the application."""
     c = get_theme_tokens(is_light)
+    bg = "#ffffff" if is_light else "#0f172a"
+    card_bg = "#f8fafc" if is_light else "#111827"
+    input_bg = "#ffffff" if is_light else "#0b1220"
+    border = "#e2e8f0" if is_light else "#334155"
+    border_focus = "#ef4444"
+    text_pri = "#0f172a" if is_light else "#f1f5f9"
+    text_mut = "#64748b" if is_light else "#94a3b8"
+    item_hover_bg = "#f1f5f9" if is_light else "#1e293b"
+    item_hover_text = "#0f172a" if is_light else "#ffffff"
+    item_sel_bg = "#fef2f2" if is_light else "#1e293b"
+    item_sel_text = "#dc2626" if is_light else "#ffffff"
+
     return f"""
         QDialog {{
-            background-color: {c['dialog_bg']};
-            color: {c['text_primary']};
+            background-color: {bg};
+            color: {text_pri};
             border: none;
         }}
-        QPushButton#yesBtn {{
-            background-color: {c['accent']};
-            color: #ffffff;
-            border: 0px;
-            border-radius: 10px;
-            padding: 9px 26px;
-            font-weight: 800;
-            min-width: 120px;
-        }}
-        QPushButton#noBtn {{
-            background-color: {c['card_bg']};
-            color: {c['text_primary']};
-            border: 1px solid {c['border']};
-            border-radius: 10px;
-            padding: 9px 26px;
-            font-weight: 800;
-            min-width: 120px;
-        }}
-        QPushButton:pressed {{
-            padding-top: 10px;
+        QLabel {{
+            background: transparent;
         }}
         QLineEdit {{
-            font-size: {c['font_size_base']};
-            padding: {c['input_padding']};
-            border: 1px solid {c['border']};
-            border-radius: {c['border_radius_md']};
-            background-color: {c['input_bg']};
-            color: {c['text_primary']};
+            font-size: 9.5pt;
+            padding: 0px 10px;
+            border: 1px solid {border};
+            border-radius: 6px;
+            background-color: {input_bg};
+            color: {text_pri};
+        }}
+        QLineEdit:hover {{
+            border: 1px solid {'#cbd5e1' if is_light else '#475569'};
         }}
         QLineEdit:focus {{
-            border-color: {c['accent']};
-            background-color: {c['input_bg']};
+            border: 1px solid {border_focus};
+        }}
+        QLineEdit:disabled {{
+            background-color: {card_bg};
+            color: {text_mut};
+            border-color: {border};
         }}
         QLineEdit::placeholder {{
-            color: {c['placeholder']};
+            color: {text_mut};
+        }}
+        QListWidget {{
+            background-color: {input_bg};
+            border: 1px solid {border};
+            border-radius: 6px;
+            color: {text_pri};
+            font-size: 9pt;
+            font-family: Consolas, 'Courier New', monospace;
+            padding: 4px;
+            outline: none;
+        }}
+        QListWidget:disabled {{
+            background-color: {card_bg};
+            color: {text_mut};
+            border-color: {border};
+        }}
+        QListWidget::item {{
+            padding: 6px 10px;
+            border-radius: 4px;
+            border: none;
+            outline: none;
+            color: {text_pri};
+        }}
+        QListWidget::item:hover {{
+            background-color: {item_hover_bg};
+            color: {item_hover_text};
+        }}
+        QListWidget::item:selected {{
+            background-color: {item_sel_bg};
+            color: {item_sel_text};
+            border-left: 3px solid #ef4444;
+            outline: none;
+        }}
+        QRadioButton {{
+            font-size: 9.5pt;
+            font-weight: 500;
+            color: {text_pri};
+            spacing: 8px;
+            padding: 2px 0px;
+            outline: none;
+        }}
+        QRadioButton:hover {{
+            color: {text_pri};
+        }}
+        QRadioButton::indicator {{
+            width: 16px;
+            height: 16px;
+            border: 2px solid {border};
+            border-radius: 9px;
+            background-color: {input_bg};
+        }}
+        QRadioButton::indicator:hover {{
+            border-color: #94a3b8;
+        }}
+        QRadioButton::indicator:checked {{
+            border: 2px solid #ef4444;
+            background: qradialgradient(cx:0.5, cy:0.5, radius:0.4, fx:0.5, fy:0.5, stop:0 #ef4444, stop:0.65 #ef4444, stop:0.75 transparent, stop:1 transparent);
+        }}
+        /* Primary / Confirm Actions */
+        QPushButton#yesBtn, QPushButton#saveBtn {{
+            background-color: #ef4444;
+            color: #ffffff;
+            border: none;
+            border-radius: 6px;
+            padding: 0px 20px;
+            font-size: 9.5pt;
+            font-weight: 700;
+            min-height: 36px;
+        }}
+        QPushButton#yesBtn:hover, QPushButton#saveBtn:hover {{
+            background-color: #dc2626;
+        }}
+        QPushButton#yesBtn:pressed, QPushButton#saveBtn:pressed {{
+            background-color: #b91c1c;
+        }}
+        /* Secondary / Dismiss Actions */
+        QPushButton#noBtn, QPushButton#cancelBtn {{
+            background-color: {card_bg};
+            color: {text_mut};
+            border: 1px solid {border};
+            border-radius: 6px;
+            padding: 0px 16px;
+            font-size: 9.5pt;
+            font-weight: 600;
+            min-height: 36px;
+        }}
+        QPushButton#noBtn:hover, QPushButton#cancelBtn:hover {{
+            background-color: {border};
+            color: {text_pri};
+        }}
+        /* Standard Outlined Action Button */
+        QPushButton#actionBtn {{
+            background-color: {card_bg};
+            color: {text_pri};
+            border: 1px solid {border};
+            border-radius: 6px;
+            padding: 0px 12px;
+            font-size: 9.5pt;
+            font-weight: 600;
+        }}
+        QPushButton#actionBtn:hover {{
+            background-color: {border};
+            color: {text_pri};
+        }}
+        QPushButton#actionBtn:pressed {{
+            background-color: {card_bg};
+        }}
+        QPushButton#actionBtn:disabled {{
+            background-color: {bg};
+            border-color: {border};
+            color: {text_mut};
+        }}
+        /* High-emphasis Tonal Action Button (M3) */
+        QPushButton#tonalActionBtn {{
+            background-color: {'#e0f2fe' if is_light else 'rgba(56, 189, 248, 0.14)'};
+            color: {'#0284c7' if is_light else '#38bdf8'};
+            border: 1px solid {'#bae6fd' if is_light else 'rgba(56, 189, 248, 0.35)'};
+            border-radius: 6px;
+            padding: 0px 12px;
+            font-size: 9.5pt;
+            font-weight: 700;
+        }}
+        QPushButton#tonalActionBtn:hover {{
+            background-color: {'#bae6fd' if is_light else 'rgba(56, 189, 248, 0.24)'};
+            color: {'#0369a1' if is_light else '#7dd3fc'};
+            border-color: {'#7dd3fc' if is_light else 'rgba(56, 189, 248, 0.55)'};
+        }}
+        QPushButton#tonalActionBtn:pressed {{
+            background-color: {'#e0f2fe' if is_light else 'rgba(56, 189, 248, 0.14)'};
+        }}
+        /* Low-emphasis Subtle Action Button (M3) */
+        QPushButton#subtleActionBtn {{
+            background-color: transparent;
+            color: {text_mut};
+            border: 1px solid {border};
+            border-radius: 6px;
+            padding: 0px 12px;
+            font-size: 9.5pt;
+            font-weight: 500;
+        }}
+        QPushButton#subtleActionBtn:hover {{
+            background-color: {item_hover_bg};
+            color: {text_pri};
+            border-color: {'#94a3b8' if is_light else '#475569'};
+        }}
+        QPushButton#subtleActionBtn:pressed {{
+            background-color: transparent;
         }}
     """
 
@@ -349,25 +501,30 @@ def get_progress_dialog_stylesheet(is_light: bool) -> str:
             margin-bottom: 10px;
         }}
         QPushButton {{
-            border-radius: 12px;
-            padding: 10px 26px;
-            font-weight: 700;
+            border-radius: 6px;
+            padding: 0px 20px;
+            font-size: 9.5pt;
+            font-weight: 600;
             color: {c['text_primary']};
             border: 1px solid {c['border']};
-            background-color: {c['window_bg']};
+            background-color: {c['card_bg']};
+            min-height: 36px;
+        }}
+        QPushButton:hover {{
+            background-color: {c['border']};
         }}
         QProgressBar {{
-            height: 16px;
-            border-radius: 8px;
+            height: 14px;
+            border-radius: 6px;
             background-color: {c['progress_bar_bg']};
             border: 1px solid {c['border']};
             margin: 8px 0px 18px 0px;
             qproperty-alignment: AlignCenter;
-            font-size: 12pt;
+            font-size: 10pt;
             qproperty-textVisible: false;
         }}
         QProgressBar::chunk {{
-            border-radius: 6px;
+            border-radius: 5px;
             background-color: {c['accent']};
         }}
     """

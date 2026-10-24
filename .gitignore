@@ -4,3 +4,7 @@
 /venv
 /build
 /dist
+/scratch
+/.agents
+.DS_Store
+*.log

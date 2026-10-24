@@ -124,9 +124,11 @@ def main():
 
         dlg = ModernPromptDialog(
             parent=None,
-            title="Confirm Exit",
-            headline_text="Confirm Exit",
-            info_text=f"Are you sure you want to quit {APP_NAME}?"
+            title="Exit",
+            headline_text="Exit Nizi POS Connector",
+            info_text="Terminates active hardware connections and background API services.",
+            yes_text="Exit",
+            no_text="Cancel",
         )
         dlg.exec()
         

@@ -6,6 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Nizi POS Connector — Dashboard</title>
     <meta name="description" content="Nizi POS Connector — device control dashboard">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
     <link rel="stylesheet" href="/api/theme.css">
     <link rel="stylesheet" href="/static/style.css">
     <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
@@ -38,33 +39,44 @@
 
             <!-- ─── Connection Card ─── -->
             <div class="card" id="connectionCard">
-                <div class="card-title"><span class="icon">🔌</span> Connection</div>
+                <div class="card-title"><span class="icon material-symbols-outlined">cable</span> Connection</div>
                 <div class="form-group">
                     <label for="comPort">COM Port (leave blank for auto-detect)</label>
                     <input type="text" id="comPort" class="form-control" placeholder="e.g. COM3 or leave empty">
                 </div>
                 <div class="connection-actions">
-                    <button class="btn btn-success btn-sm" id="btnConnect" onclick="connectDevice()">⚡ Connect</button>
-                    <button class="btn btn-danger btn-sm" id="btnDisconnect" onclick="disconnectDevice()">✕
-                        Disconnect</button>
+                    <button class="btn btn-success btn-sm" id="btnConnect" onclick="connectDevice()">
+                        <span class="material-symbols-outlined btn-icon">power</span> Connect
+                    </button>
+                    <button class="btn btn-danger btn-sm" id="btnDisconnect" onclick="disconnectDevice()">
+                        <span class="material-symbols-outlined btn-icon">power_off</span> Disconnect
+                    </button>
                 </div>
             </div>
 
             <!-- ─── Quick Commands ─── -->
             <div class="card">
-                <div class="card-title"><span class="icon">🚀</span> Quick Commands</div>
+                <div class="card-title"><span class="icon material-symbols-outlined">bolt</span> Quick Commands</div>
                 <div class="btn-group">
-                    <button class="btn btn-outline btn-sm" onclick="sendCmd('IDLE')">💤 IDLE</button>
-                    <button class="btn btn-outline btn-sm" onclick="sendCmd('WAKE')">☀️ WAKE</button>
-                    <button class="btn btn-warning btn-sm" onclick="sendCmd('RESET')">🔄 RESTART</button>
+                    <button class="btn btn-outline btn-sm" onclick="sendCmd('IDLE')">
+                        <span class="material-symbols-outlined btn-icon">bedtime</span> IDLE
+                    </button>
+                    <button class="btn btn-outline btn-sm" onclick="sendCmd('WAKE')">
+                        <span class="material-symbols-outlined btn-icon">light_mode</span> WAKE
+                    </button>
+                    <button class="btn btn-warning btn-sm" onclick="sendCmd('RESET')">
+                        <span class="material-symbols-outlined btn-icon">restart_alt</span> RESTART
+                    </button>
                     <button class="btn btn-danger btn-sm"
-                        onclick="if(confirm('Format internal flash?')) sendCmd('FORMAT')">🗑 FORMAT</button>
+                        onclick="if(confirm('Format internal flash?')) sendCmd('FORMAT')">
+                        <span class="material-symbols-outlined btn-icon">delete_forever</span> FORMAT
+                    </button>
                 </div>
             </div>
 
             <!-- ─── Text Command ─── -->
             <div class="card">
-                <div class="card-title"><span class="icon">📝</span> Text Display</div>
+                <div class="card-title"><span class="icon material-symbols-outlined">text_fields</span> Text Display</div>
                 <div class="form-group">
                     <label for="textTitle">Main Title</label>
                     <input type="text" id="textTitle" class="form-control" placeholder="Main Title">
@@ -77,12 +89,14 @@
                     <label for="textMessage">Message</label>
                     <textarea id="textMessage" class="form-control" placeholder="Message body"></textarea>
                 </div>
-                <button class="btn btn-primary btn-sm" onclick="sendText()">Send Text</button>
+                <button class="btn btn-primary btn-sm" onclick="sendText()">
+                    <span class="material-symbols-outlined btn-icon">send</span> Send Text
+                </button>
             </div>
 
             <!-- ─── QR Command ─── -->
             <div class="card">
-                <div class="card-title"><span class="icon">📱</span> QR Code Display</div>
+                <div class="card-title"><span class="icon material-symbols-outlined">qr_code_2</span> QR Code Display</div>
                 <div class="form-group">
                     <label for="qrAmount">Amount</label>
                     <input type="text" id="qrAmount" class="form-control" placeholder="Rs. 123.45">
@@ -96,12 +110,14 @@
                     <label for="qrPayload">QR Payload</label>
                     <textarea id="qrPayload" class="form-control" placeholder="QR payload data"></textarea>
                 </div>
-                <button class="btn btn-primary btn-sm" onclick="sendQR()">Send QR</button>
+                <button class="btn btn-primary btn-sm" onclick="sendQR()">
+                    <span class="material-symbols-outlined btn-icon">send</span> Send QR
+                </button>
             </div>
 
             <!-- ─── Status Screens ─── -->
             <div class="card full-width">
-                <div class="card-title"><span class="icon">📺</span> Status Screens</div>
+                <div class="card-title"><span class="icon material-symbols-outlined">display_settings</span> Status Screens</div>
 
                 <div class="dashboard-grid" style="gap:12px;">
                     <!-- WAIT -->
@@ -111,8 +127,9 @@
                             <input type="text" id="waitAmount" class="form-control" placeholder="Rs. 560.50">
                         </div>
                         <input type="text" id="waitMsg" class="form-control" placeholder="Please wait...">
-                        <button class="btn btn-warning btn-sm" onclick="sendStatus('WAIT', 'waitAmount', 'waitMsg')">⏳
-                            WAIT</button>
+                        <button class="btn btn-warning btn-sm" onclick="sendStatus('WAIT', 'waitAmount', 'waitMsg')">
+                            <span class="material-symbols-outlined btn-icon">hourglass_top</span> WAIT
+                        </button>
                     </div>
                     <!-- PASS -->
                     <div style="display:flex;flex-direction:column;gap:8px;">
@@ -121,8 +138,9 @@
                             <input type="text" id="passTitle" class="form-control" placeholder="SUCCESS!">
                         </div>
                         <input type="text" id="passMsg" class="form-control" placeholder="Payment successful">
-                        <button class="btn btn-success btn-sm" onclick="sendStatus('PASS', 'passTitle', 'passMsg')">✓
-                            PASS</button>
+                        <button class="btn btn-success btn-sm" onclick="sendStatus('PASS', 'passTitle', 'passMsg')">
+                            <span class="material-symbols-outlined btn-icon">check_circle</span> PASS
+                        </button>
                     </div>
                     <!-- FAIL -->
                     <div style="display:flex;flex-direction:column;gap:8px;">
@@ -131,8 +149,9 @@
                             <input type="text" id="failAmount" class="form-control" placeholder="Rs. 560.50">
                         </div>
                         <input type="text" id="failMsg" class="form-control" placeholder="Payment Failed">
-                        <button class="btn btn-danger btn-sm" onclick="sendStatus('FAIL', 'failAmount', 'failMsg')">✕
-                            FAIL</button>
+                        <button class="btn btn-danger btn-sm" onclick="sendStatus('FAIL', 'failAmount', 'failMsg')">
+                            <span class="material-symbols-outlined btn-icon">cancel</span> FAIL
+                        </button>
                     </div>
                     <!-- WARN -->
                     <div style="display:flex;flex-direction:column;gap:8px;">
@@ -141,8 +160,9 @@
                             <input type="text" id="warnTitle" class="form-control" placeholder="Device Not Ready">
                         </div>
                         <input type="text" id="warnMsg" class="form-control" placeholder="Please wait">
-                        <button class="btn btn-warning btn-sm" onclick="sendStatus('WARN', 'warnTitle', 'warnMsg')">⚠
-                            WARN</button>
+                        <button class="btn btn-warning btn-sm" onclick="sendStatus('WARN', 'warnTitle', 'warnMsg')">
+                            <span class="material-symbols-outlined btn-icon">warning</span> WARN
+                        </button>
                     </div>
                     <!-- INFO -->
                     <div style="display:flex;flex-direction:column;gap:8px;">
@@ -151,15 +171,16 @@
                             <input type="text" id="infoTitle" class="form-control" placeholder="Important">
                         </div>
                         <input type="text" id="infoMsg" class="form-control" placeholder="Keep device connected">
-                        <button class="btn btn-info btn-sm" onclick="sendStatus('INFO', 'infoTitle', 'infoMsg')">ℹ
-                            INFO</button>
+                        <button class="btn btn-info btn-sm" onclick="sendStatus('INFO', 'infoTitle', 'infoMsg')">
+                            <span class="material-symbols-outlined btn-icon">info</span> INFO
+                        </button>
                     </div>
                 </div>
             </div>
 
             <!-- ─── Settings ─── -->
             <div class="card">
-                <div class="card-title"><span class="icon">⚙️</span> Device Settings</div>
+                <div class="card-title"><span class="icon material-symbols-outlined">tune</span> Device Settings</div>
 
                 <div class="slider-group">
                     <div class="slider-header">
@@ -169,7 +190,9 @@
                     <input type="range" id="volumeSlider" min="0" max="100" value="0"
                         oninput="document.getElementById('volumeVal').textContent=this.value">
                     <button class="btn btn-outline btn-sm" style="margin-top:8px"
-                        onclick="setSetting('volume', document.getElementById('volumeSlider').value)">Apply</button>
+                        onclick="setSetting('volume', document.getElementById('volumeSlider').value)">
+                        <span class="material-symbols-outlined btn-icon">check</span> Apply
+                    </button>
                 </div>
 
                 <div class="slider-group">
@@ -180,7 +203,9 @@
                     <input type="range" id="brightnessSlider" min="0" max="100" value="0"
                         oninput="document.getElementById('brightnessVal').textContent=this.value">
                     <button class="btn btn-outline btn-sm" style="margin-top:8px"
-                        onclick="setSetting('brightness', document.getElementById('brightnessSlider').value)">Apply</button>
+                        onclick="setSetting('brightness', document.getElementById('brightnessSlider').value)">
+                        <span class="material-symbols-outlined btn-icon">check</span> Apply
+                    </button>
                 </div>
 
                 <div class="slider-group">
@@ -191,7 +216,9 @@
                     <input type="range" id="screentimeSlider" min="10" max="600" value="10"
                         oninput="document.getElementById('screentimeVal').textContent=this.value">
                     <button class="btn btn-outline btn-sm" style="margin-top:8px"
-                        onclick="setSetting('screentime', document.getElementById('screentimeSlider').value)">Apply</button>
+                        onclick="setSetting('screentime', document.getElementById('screentimeSlider').value)">
+                        <span class="material-symbols-outlined btn-icon">check</span> Apply
+                    </button>
                 </div>
 
                 <div class="settings-hint" id="settingsHint">
@@ -201,9 +228,11 @@
 
             <!-- ─── Image Upload ─── -->
             <div class="card">
-                <div class="card-title"><span class="icon">🖼</span> Image Upload</div>
+                <div class="card-title"><span class="icon material-symbols-outlined">image</span> Image Upload</div>
                 <div class="drop-zone" id="dropZone">
-                    <div class="drop-icon">📤</div>
+                    <div class="drop-icon">
+                        <span class="material-symbols-outlined" style="font-size: 38px;">cloud_upload</span>
+                    </div>
                     <p>Drop JPEG image here or click to browse</p>
                     <div class="drop-hint">Supports .jpg / .jpeg files only</div>
                     <input type="file" id="imageInput" accept="image/jpeg,.jpg,.jpeg"
@@ -221,23 +250,25 @@
                 <div id="imagePreview" style="text-align:center;margin-top:10px;"></div>
                 <button class="btn btn-primary btn-sm" style="margin-top:12px;width:100%;" id="btnUploadImg"
                     onclick="uploadImage()" disabled>
-                    Upload to Device
+                    <span class="material-symbols-outlined btn-icon">cloud_upload</span> Upload to Device
                 </button>
             </div>
 
             <!-- ─── Raw Command ─── -->
             <div class="card">
-                <div class="card-title"><span class="icon">⌨️</span> Raw Command</div>
+                <div class="card-title"><span class="icon material-symbols-outlined">terminal</span> Raw Command</div>
                 <div class="form-group">
                     <label for="rawCommand">Command String</label>
                     <input type="text" id="rawCommand" class="form-control" placeholder="e.g. TEXT**Hello**World**Test">
                 </div>
-                <button class="btn btn-primary btn-sm" onclick="sendRaw()">Send</button>
+                <button class="btn btn-primary btn-sm" onclick="sendRaw()">
+                    <span class="material-symbols-outlined btn-icon">send</span> Send
+                </button>
             </div>
 
             <!-- ─── Activity Log ─── -->
             <div class="card">
-                <div class="card-title"><span class="icon">📋</span> Activity Log</div>
+                <div class="card-title"><span class="icon material-symbols-outlined">list_alt</span> Activity Log</div>
                 <div class="log-area" id="logArea">
                     <div class="log-entry info"><span class="timestamp">[--:--:--]</span> Dashboard loaded. Connect a
                         device to start.</div>
@@ -251,7 +282,9 @@
     <div class="modal-overlay" id="setupModal">
         <div class="setup-card">
             <div class="setup-header">
-                <div class="logo-icon" style="margin: 0 auto 16px;">🔑</div>
+                <div class="logo-icon" style="margin: 0 auto 16px;">
+                    <span class="material-symbols-outlined" style="font-size:24px;">vpn_key</span>
+                </div>
                 <h2>Setup API Access</h2>
                 <p>Enter the API key shared with you via email or WhatsApp.</p>
             </div>
@@ -262,11 +295,16 @@
             </div>
 
             <div class="setup-footer">
-                <button class="btn btn-primary" onclick="saveApiKey()">Authorize Access</button>
+                <button class="btn btn-primary" onclick="saveApiKey()">
+                    <span class="material-symbols-outlined btn-icon">lock_open</span> Authorize Access
+                </button>
                 <div class="setup-actions">
-                    <button class="btn btn-outline" type="button" onclick="openContactUs()">Contact Us</button>
-                    <button class="btn btn-success" type="button" onclick="openWhatsAppSupport()">Contact on
-                        WhatsApp</button>
+                    <button class="btn btn-outline" type="button" onclick="openContactUs()">
+                        <span class="material-symbols-outlined btn-icon">support_agent</span> Contact Us
+                    </button>
+                    <button class="btn btn-success" type="button" onclick="openWhatsAppSupport()">
+                        <span class="material-symbols-outlined btn-icon">chat</span> Contact on WhatsApp
+                    </button>
                 </div>
                 <p style="font-size:0.7rem; color:var(--text-muted); text-align:center;">
                     Need help with the key? Reach out to Yarsa Tech. Contact us on WhatsApp or email.
@@ -274,7 +312,6 @@
             </div>
         </div>
     </div>
-
 
     <!-- Toast container -->
     <div class="toast-container" id="toastContainer"></div>

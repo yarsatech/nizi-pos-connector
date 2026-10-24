@@ -1,10 +1,12 @@
 import hashlib
 from typing import Optional
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
 from pathlib import Path
+
 
 import requests
 
@@ -214,10 +216,12 @@ class UpdateManager:
         dlg = ModernPromptDialog(
             parent=parent_widget,
             title=UPDATE_WINDOW_TITLE,
-            headline_text="An update is available.",
-            info_text=f"Current: {current_version}\nLatest:  {latest_version}\n\nDownload and update now?",
+            headline_text="Software Update Available",
+            info_text=f"Installed version: {current_version}\nAvailable version: {latest_version}\n\nDownload and install the release package now.",
+            yes_text="Update Now",
+            no_text="Later",
             min_width=460,
-            min_height=200
+            min_height=180
         )
         dlg.exec()
 
@@ -233,14 +237,10 @@ class UpdateManager:
         )
         progress.show()
 
+        staging_dir = None
         try:
-            tmp_dir = Path(tempfile.gettempdir()) / OTA_TEMP_DIR_NAME
-            zip_path = tmp_dir / f"update_{info.latest_version}.zip"
-            if zip_path.exists():
-                try:
-                    zip_path.unlink()
-                except Exception:
-                    pass
+            staging_dir = tempfile.mkdtemp(prefix=f"{OTA_TEMP_DIR_NAME}_")
+            zip_path = Path(staging_dir) / f"update_{info.latest_version}.zip"
 
             progress.setLabelText("Downloading update...")
             progress.setRange(0, 0)
@@ -300,6 +300,8 @@ class UpdateManager:
             QApplication.processEvents()
             actual = self._sha256_file(zip_path)
             if actual.lower() != info.sha256.lower():
+                if staging_dir and os.path.isdir(staging_dir):
+                    shutil.rmtree(staging_dir, ignore_errors=True)
                 QMessageBox.critical(
                     parent_widget,
                     UPDATE_ERROR_CAPTION,
@@ -310,6 +312,8 @@ class UpdateManager:
             installed_dir = Path(os.path.dirname(sys.executable))
             updater_exe = self._resolve_binary_path(installed_dir, UPDATER_EXE_BASENAME)
             if updater_exe is None:
+                if staging_dir and os.path.isdir(staging_dir):
+                    shutil.rmtree(staging_dir, ignore_errors=True)
                 QMessageBox.critical(
                     parent_widget,
                     UPDATE_ERROR_CAPTION,
@@ -322,6 +326,8 @@ class UpdateManager:
 
             main_exe = self._resolve_binary_path(installed_dir, MAIN_EXE_BASENAME)
             if main_exe is None:
+                if staging_dir and os.path.isdir(staging_dir):
+                    shutil.rmtree(staging_dir, ignore_errors=True)
                 QMessageBox.critical(
                     parent_widget,
                     UPDATE_ERROR_CAPTION,
@@ -352,9 +358,13 @@ class UpdateManager:
             return True
         except OTALocalCancelled:
             self._write_log("[download] cancelled by user (exception)")
+            if staging_dir and os.path.isdir(staging_dir):
+                shutil.rmtree(staging_dir, ignore_errors=True)
             return False
         except Exception as e:
             self._write_log(f"[prompt_and_update] failed: {e}")
+            if staging_dir and os.path.isdir(staging_dir):
+                shutil.rmtree(staging_dir, ignore_errors=True)
             QMessageBox.critical(parent_widget, UPDATE_ERROR_CAPTION, str(e))
             return False
         finally:
@@ -362,3 +372,4 @@ class UpdateManager:
                 progress.close()
             except Exception:
                 pass
+

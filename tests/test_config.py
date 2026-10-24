@@ -107,6 +107,78 @@ class TestConfig(unittest.TestCase):
                 self.assertEqual(cfg_reloaded.cors_mode, "allow_all")
                 self.assertEqual(cfg_reloaded.cors_allowed_origins, ["https://custom-pos.com"])
 
+    def test_custom_api_key_persistence(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as td:
+            with patch("config.user_config_dir", return_value=td):
+                cfg = Config()
+                custom_token = "nizipos-fixed-secret-token"
+                saved = cfg.set_custom_api_key(custom_token)
+                self.assertEqual(saved, custom_token)
+                self.assertEqual(cfg.api_key, custom_token)
+
+                # Reload in new instance
+                cfg_reloaded = Config()
+                self.assertEqual(cfg_reloaded.api_key, custom_token)
+
+    def test_custom_api_key_validation_and_uuid(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as td:
+            with patch("config.user_config_dir", return_value=td):
+                cfg = Config()
+
+                # 1. Empty string rejection
+                with self.assertRaises(ValueError):
+                    cfg.set_custom_api_key("   ")
+
+                # 2. Too short (< 16 chars, e.g. "12345", "pin123")
+                with self.assertRaises(ValueError) as ctx:
+                    cfg.set_custom_api_key("12345")
+                self.assertIn("between 16 and 32", str(ctx.exception))
+
+                with self.assertRaises(ValueError):
+                    cfg.set_custom_api_key("pin123")
+
+                # 3. Too long (> 32 chars)
+                with self.assertRaises(ValueError) as ctx:
+                    cfg.set_custom_api_key("a" * 33)
+                self.assertIn("between 16 and 32", str(ctx.exception))
+
+                # 4. Purely digits (e.g. 16 digits)
+                with self.assertRaises(ValueError) as ctx:
+                    cfg.set_custom_api_key("9854720194827163")
+                self.assertIn("mix of character types", str(ctx.exception))
+
+                # 5. Purely letters (e.g. 16+ letters)
+                with self.assertRaises(ValueError) as ctx:
+                    cfg.set_custom_api_key("somelongalphabeticpass")
+                self.assertIn("mix of character types", str(ctx.exception))
+
+                # 6. Cyclical repeating patterns
+                with self.assertRaises(ValueError) as ctx:
+                    cfg.set_custom_api_key("a1a1a1a1a1a1a1a1")
+                self.assertIn("repeating or cyclical", str(ctx.exception).lower())
+
+                # 7. Sequential characters and keyboard walks
+                with self.assertRaises(ValueError) as ctx:
+                    cfg.set_custom_api_key("pos_12345_lane_key")
+                self.assertIn("sequential", str(ctx.exception).lower())
+
+                # 8. Valid passkeys with high entropy (16-32 chars)
+                self.assertFalse(cfg.is_custom_api_key)
+                token1 = cfg.set_custom_api_key("pos_counter_lane_01")
+                self.assertEqual(token1, "pos_counter_lane_01")
+                self.assertEqual(cfg.api_key, "pos_counter_lane_01")
+                self.assertTrue(cfg.is_custom_api_key)
+
+                token2 = cfg.set_custom_api_key("3a8f1b90d2e448b1a80c9e782fb5a11c")
+                self.assertEqual(token2, "3a8f1b90d2e448b1a80c9e782fb5a11c")
+                self.assertEqual(cfg.api_key, "3a8f1b90d2e448b1a80c9e782fb5a11c")
+                self.assertTrue(cfg.is_custom_api_key)
+
+                cfg.regenerate_api_key()
+                self.assertFalse(cfg.is_custom_api_key)
+
 
 if __name__ == "__main__":
     unittest.main()

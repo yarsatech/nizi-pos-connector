@@ -34,26 +34,31 @@ IMAGE_READY = b"R"
 CH340_VID = 0x1A86
 CH340_PIDS = [0x7523, 0x5523, 0x5512, 0x7522]
 
-ALLOWED_SERIAL_VERBS = frozenset({
+SAFE_TRANSACTION_VERBS = frozenset({
     "QR", "WAIT", "PASS", "FAIL", "INFO", "TEXT", "WARN",
     "IDLE", "IDLE_SINGLE", "IDLE_CYCLE", "IDLE_SLEEP", "IDLE_SLEEP_WAKE",
-    "WAKE", "RESET", "FORMAT",
-    "VOLUME", "BRIGHTNESS", "SCREENTIME", "TIMEOUT",
+    "WAKE", "VOLUME", "BRIGHTNESS", "SCREENTIME", "TIMEOUT",
     "ACTIVATE_BUZZER", "DO_BLE_MODE_ENABLE", "BLE_OFF",
     "GET_VOLUME", "GET_BRIGHTNESS", "GET_IDLE",
-    "IS_BLE_ON", "IS_BLE_PIN_CHANGED", "BLE_CHG_PIN", "BLE_RESET_PIN",
-    "DEVICE_ID", "FIRMWARE_ID",
+    "IS_BLE_ON", "IS_BLE_PIN_CHANGED", "DEVICE_ID", "FIRMWARE_ID",
+})
+
+RESTRICTED_ADMIN_VERBS = frozenset({
+    "RESET", "FORMAT", "BLE_CHG_PIN", "BLE_RESET_PIN",
     "START_RTIMAGE", "IMAGE_UPLOAD", "IMAGE_UPLOAD_2",
 })
+
+ALLOWED_SERIAL_VERBS = SAFE_TRANSACTION_VERBS | RESTRICTED_ADMIN_VERBS
 
 _CONTROL_CHARS = re.compile(r"[\r\n\x00-\x1f\x7f]")
 
 
-def validate_serial_frame(command: str) -> str:
+def validate_serial_frame(command: str, allow_admin: bool = True) -> str:
     """
     Validate command frame before sending over UART.
     Enforces protocol syntax, rejects control characters and unapproved verbs,
     and guards against delimiter injection breakouts.
+    Optionally blocks administrative or binary framing verbs when invoked from network API.
     """
     if not isinstance(command, str) or not command.strip():
         raise ValueError("Command cannot be empty")
@@ -70,12 +75,16 @@ def validate_serial_frame(command: str) -> str:
     if verb not in ALLOWED_SERIAL_VERBS:
         raise ValueError(f"Verb '{verb}' is not permitted")
 
+    if not allow_admin and verb in RESTRICTED_ADMIN_VERBS:
+        raise ValueError(f"Verb '{verb}' requires dedicated administrative authorization")
+
     # Enforce field length boundaries
     for idx, field in enumerate(parts[1:], start=1):
         if len(field) > 1024:
             raise ValueError(f"Field {idx} exceeds maximum allowed length (1024)")
 
     return clean_cmd
+
 
 
 class DeviceManager:
@@ -479,7 +488,7 @@ class DeviceManager:
                     # For query commands returning variable state, return the response line itself
                     return {"success": True, "response": response, "error": None}
                     
-            except serial.SerialException as exc:
+            except (serial.SerialException, OSError, Exception) as exc:
                 logger.error(f"Send error: {exc}")
                 self._connected = False
                 self._notify_status()
@@ -669,7 +678,7 @@ class DeviceManager:
                         "error": f"Unexpected ack: {ack!r}",
                     }
 
-            except serial.SerialException as exc:
+            except (serial.SerialException, OSError, Exception) as exc:
                 logger.error(f"Image upload error: {exc}")
                 self._connected = False
                 self._notify_status()

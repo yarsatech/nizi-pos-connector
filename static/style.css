@@ -600,3 +600,44 @@ input[type="range"]::-webkit-slider-thumb:hover {
 .key-manage-btn:hover {
     color: var(--accent-bright);
 }
+
+/* ── Material Symbols & Icons ─────────────────────────────────────── */
+
+.material-symbols-outlined {
+    font-family: 'Material Symbols Outlined';
+    font-weight: normal;
+    font-style: normal;
+    font-size: 20px;
+    line-height: 1;
+    letter-spacing: normal;
+    text-transform: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    vertical-align: middle;
+    white-space: nowrap;
+    word-wrap: normal;
+    direction: ltr;
+    -webkit-font-smoothing: antialiased;
+}
+
+.card-title .icon.material-symbols-outlined {
+    font-size: 1.15rem;
+    color: var(--accent);
+}
+
+.btn .btn-icon {
+    font-size: 18px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.spinning {
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}

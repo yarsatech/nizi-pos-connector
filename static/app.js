@@ -36,6 +36,7 @@ async function saveApiKey() {
         localStorage.removeItem(API_KEY_STORAGE_LEGACY);
     } catch (_e) {}
     apiKey = key;
+    loadClientConfig();
     document.getElementById("setupModal").classList.remove("active");
     
     // Connect SocketIO with the new key
@@ -168,12 +169,12 @@ async function connectDevice() {
     addLog("Connecting..." + (port ? ` (${port})` : " (auto-detect)"), "info");
     const btn = document.getElementById("btnConnect");
     btn.disabled = true;
-    btn.textContent = "⏳ Connecting...";
+    btn.innerHTML = '<span class="material-symbols-outlined btn-icon spinning">sync</span> Connecting...';
 
     const res = await api("POST", "/api/connect", port ? { port } : {});
 
     btn.disabled = false;
-    btn.textContent = "⚡ Connect";
+    btn.innerHTML = '<span class="material-symbols-outlined btn-icon">power</span> Connect';
 
     if (res.success) {
         showToast("Connected to " + res.port, "success");
@@ -295,7 +296,7 @@ async function uploadImage() {
     if (!selectedImageFile) { showToast("No image selected", "warning"); return; }
     const btn = document.getElementById("btnUploadImg");
     btn.disabled = true;
-    btn.textContent = "⏳ Uploading...";
+    btn.innerHTML = '<span class="material-symbols-outlined btn-icon spinning">sync</span> Uploading...';
     addLog(`Uploading ${selectedImageFile.name} (${(selectedImageFile.size / 1024).toFixed(1)} KB)`, "info");
 
     const fd = new FormData();
@@ -305,7 +306,7 @@ async function uploadImage() {
     const res = await api("POST", "/api/upload-image", fd);
 
     btn.disabled = false;
-    btn.textContent = "Upload to Device";
+    btn.innerHTML = '<span class="material-symbols-outlined btn-icon">cloud_upload</span> Upload to Device';
 
     if (res.success) {
         addLog("✓ Image uploaded successfully", "success");
@@ -345,10 +346,14 @@ function escapeHtml(text) {
 function showToast(message, type = "info", duration = 3000) {
     const container = document.getElementById("toastContainer");
     const toast = document.createElement("div");
-    toast.className = `toast ${type}`;
-
-    const icons = { success: "✓", error: "✕", warning: "⚠", info: "ℹ" };
-    toast.innerHTML = `<span>${icons[type] || "ℹ"}</span> ${escapeHtml(message)}`;
+    const icons = {
+        success: "check_circle",
+        error: "cancel",
+        warning: "warning",
+        info: "info"
+    };
+    const iconName = icons[type] || "info";
+    toast.innerHTML = `<span class="material-symbols-outlined" style="font-size:18px;">${iconName}</span> <span>${escapeHtml(message)}</span>`;
 
     container.appendChild(toast);
 
@@ -376,7 +381,11 @@ function openWhatsAppSupport() {
 
 async function loadClientConfig() {
     try {
-        const res = await fetch("/client-config", { method: "GET" });
+        const headers = {};
+        if (apiKey) {
+            headers["X-API-Key"] = apiKey;
+        }
+        const res = await fetch("/client-config", { method: "GET", headers });
         if (!res.ok) return;
         const data = await res.json();
         if (data && data.contact_url) YARSA_CONTACT_URL = data.contact_url;

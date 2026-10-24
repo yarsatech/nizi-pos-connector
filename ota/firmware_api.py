@@ -101,14 +101,15 @@ def get_firmware_by_model(model: str) -> dict:
     """
     params = urllib.parse.urlencode({"model": model})
     url = f"{_BASE_URL}.get_firmware_by_model?{params}"
-    logger.debug(f"Firmware API request: {url}")
+    if not url.startswith("https://"):
+        raise ValueError("Only HTTPS is permitted for firmware updates")
 
     try:
         req = urllib.request.Request(
             url,
             headers={"Accept": "application/json", "User-Agent": "NiziPOSConnector"},
         )
-        with urllib.request.urlopen(req, timeout=_REQUEST_TIMEOUT) as resp:
+        with urllib.request.urlopen(req, timeout=_REQUEST_TIMEOUT) as resp:  # nosec B310
             raw = resp.read().decode("utf-8", errors="ignore")
     except urllib.error.HTTPError as exc:
         try:
@@ -150,14 +151,16 @@ def get_languages() -> list[str]:
     Call GET /get_languages and return the list of languages from the ERP.
     """
     url = f"{_BASE_URL}.get_languages"
-    logger.debug(f"Firmware API request: {url}")
+    if not url.startswith("https://"):
+        logger.warning("Only HTTPS is permitted for firmware updates")
+        return []
 
     try:
         req = urllib.request.Request(
             url,
             headers={"Accept": "application/json", "User-Agent": "NiziPOSConnector"},
         )
-        with urllib.request.urlopen(req, timeout=_REQUEST_TIMEOUT) as resp:
+        with urllib.request.urlopen(req, timeout=_REQUEST_TIMEOUT) as resp:  # nosec B310
             raw = resp.read().decode("utf-8", errors="ignore")
     except Exception as exc:
         logger.warning(f"Firmware API request failed: {exc}")
